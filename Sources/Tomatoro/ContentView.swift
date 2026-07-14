@@ -85,7 +85,7 @@ struct ContentView: View {
             if let task = selectedTask {
                 Text(task.name)
                     .font(.title2).bold()
-                Text("Recorded so far: \(task.totalSeconds.asClock)")
+                Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
 
                 Stepper(value: $minutes, in: 1...180, step: 5) {
@@ -165,7 +165,7 @@ private struct TaskRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.name)
-                Text(task.totalSeconds.asClock)
+                Text(task.totalSeconds.asHoursMinutes)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

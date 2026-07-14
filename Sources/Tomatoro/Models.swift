@@ -83,4 +83,15 @@ extension Int {
         }
         return String(format: "%d:%02d", minutes, seconds)
     }
+
+    /// Formats a number of seconds as `Hh MMm`, rounding to the nearest minute.
+    ///
+    /// Hours are never capped at 24 and are never expressed in days, so long
+    /// totals read e.g. `25h 00m` rather than `1d 1h`.
+    var asHoursMinutes: String {
+        let totalMinutes = (self + 30) / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return String(format: "%dh %02dm", hours, minutes)
+    }
 }
