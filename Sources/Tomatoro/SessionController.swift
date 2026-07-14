@@ -17,6 +17,8 @@ final class SessionController: ObservableObject {
     private var plannedSeconds: Int = 0
     /// Seconds actually spent working this session (ticks while running).
     private var elapsedSeconds: Int = 0
+    /// Wall-clock time the current session started, used when logging the record.
+    private var sessionStartedAt: Date?
     private var timer: Timer?
 
     private let store: TaskStore
@@ -41,6 +43,7 @@ final class SessionController: ObservableObject {
         plannedSeconds = max(1, minutes * 60)
         remainingSeconds = plannedSeconds
         elapsedSeconds = 0
+        sessionStartedAt = Date()
         isPaused = false
         isRunning = true
         scheduleTimer()
@@ -100,8 +103,8 @@ final class SessionController: ObservableObject {
     }
 
     private func recordElapsed() {
-        if let task = activeTask, elapsedSeconds > 0 {
-            store.addSeconds(elapsedSeconds, to: task)
+        if let task = activeTask, let startedAt = sessionStartedAt, elapsedSeconds > 0 {
+            store.addRecord(startedAt: startedAt, durationSeconds: elapsedSeconds, to: task)
         }
         elapsedSeconds = 0
     }
@@ -114,6 +117,7 @@ final class SessionController: ObservableObject {
         remainingSeconds = 0
         plannedSeconds = 0
         elapsedSeconds = 0
+        sessionStartedAt = nil
     }
 
     private func notifyUser() {

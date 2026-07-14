@@ -1,18 +1,74 @@
 import Foundation
 
+/// One recorded chunk of work against a task: when it started and how long it lasted.
+struct WorkRecord: Identifiable, Codable, Equatable {
+    let id: UUID
+    /// Wall-clock time the work session began.
+    let startedAt: Date
+    /// Time actually worked during the session, in seconds.
+    var durationSeconds: Int
+
+    init(id: UUID = UUID(), startedAt: Date, durationSeconds: Int) {
+        self.id = id
+        self.startedAt = startedAt
+        self.durationSeconds = durationSeconds
+    }
+}
+
 /// A single task the user can track time against.
+///
+/// The total time is intentionally *not* stored: it is derived from `records`
+/// so there is a single source of truth and no risk of the two drifting apart.
 struct TaskItem: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
-    /// Total time (in seconds) recorded against this task across all sessions.
-    var totalSeconds: Int
+    /// The individual work sessions logged against this task.
+    var records: [WorkRecord]
     let createdAt: Date
 
-    init(id: UUID = UUID(), name: String, totalSeconds: Int = 0, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, records: [WorkRecord] = [], createdAt: Date = Date()) {
         self.id = id
         self.name = name
-        self.totalSeconds = totalSeconds
+        self.records = records
         self.createdAt = createdAt
+    }
+
+    /// Total time (in seconds) across all recorded sessions, computed on demand.
+    var totalSeconds: Int {
+        records.reduce(0) { $0 + $1.durationSeconds }
+    }
+
+    // MARK: - Codable (with migration from the pre-records format)
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, records, createdAt
+        // Legacy key from the first version, used only for migration on read.
+        case totalSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+
+        if let decodedRecords = try container.decodeIfPresent([WorkRecord].self, forKey: .records) {
+            records = decodedRecords
+        } else if let legacyTotal = try container.decodeIfPresent(Int.self, forKey: .totalSeconds),
+                  legacyTotal > 0 {
+            // Migrate old data: fold the previous total into a single record.
+            records = [WorkRecord(startedAt: createdAt, durationSeconds: legacyTotal)]
+        } else {
+            records = []
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(records, forKey: .records)
+        try container.encode(createdAt, forKey: .createdAt)
     }
 }
 

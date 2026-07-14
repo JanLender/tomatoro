@@ -32,10 +32,11 @@ final class TaskStore: ObservableObject {
         save()
     }
 
-    /// Adds recorded time to a task and persists the change.
-    func addSeconds(_ seconds: Int, to task: TaskItem) {
-        guard seconds > 0, let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        tasks[index].totalSeconds += seconds
+    /// Logs a completed work session against a task and persists the change.
+    func addRecord(startedAt: Date, durationSeconds: Int, to task: TaskItem) {
+        guard durationSeconds > 0, let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        let record = WorkRecord(startedAt: startedAt, durationSeconds: durationSeconds)
+        tasks[index].records.append(record)
         save()
     }
 
