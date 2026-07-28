@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
     @State private var showingDailySummary = false
+    @State private var showingTaskRecords = false
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
@@ -131,12 +132,21 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-                Button {
-                    showingManualEntry = true
-                } label: {
-                    Label("Add record manually", systemImage: "plus.circle")
+                HStack(spacing: 16) {
+                    Button {
+                        showingTaskRecords = true
+                    } label: {
+                        Label("View records", systemImage: "list.bullet")
+                    }
+                    .buttonStyle(.link)
+
+                    Button {
+                        showingManualEntry = true
+                    } label: {
+                        Label("Add record manually", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.link)
                 }
-                .buttonStyle(.link)
             } else {
                 ContentUnavailableView(
                     "Pick a task",
@@ -152,6 +162,11 @@ struct ContentView: View {
                 ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds in
                     store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, to: task)
                 }
+            }
+        }
+        .sheet(isPresented: $showingTaskRecords) {
+            if let task = selectedTask {
+                TaskRecordsView(taskID: task.id)
             }
         }
     }
