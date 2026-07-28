@@ -1,22 +1,32 @@
 import Foundation
 import AppKit
 
-/// Drives a single focus session: a countdown for one task, recording the
-/// time actually worked (even if the user stops early).
+/// How the active session measures time.
+enum SessionMode: Equatable {
+    /// Counts down from a preset duration and alerts when it reaches zero.
+    case countdown
+    /// Counts up indefinitely until the user stops it (e.g. an ad-hoc meeting).
+    case stopwatch
+}
+
+/// Drives a single focus session for a task, recording the time actually
+/// worked (even if the user stops early). Supports both a countdown and a
+/// count-up stopwatch.
 @MainActor
 final class SessionController: ObservableObject {
-    /// Seconds left on the countdown.
+    /// Seconds left on the countdown (unused in stopwatch mode).
     @Published private(set) var remainingSeconds: Int = 0
+    /// Seconds worked so far this session; the stopwatch display counts this up.
+    @Published private(set) var elapsedSeconds: Int = 0
     /// The task currently being worked on, if a session is active.
     @Published private(set) var activeTask: TaskItem?
+    @Published private(set) var mode: SessionMode = .countdown
     @Published private(set) var isRunning: Bool = false
     @Published private(set) var isPaused: Bool = false
     /// Set to true when the countdown reaches zero; the UI observes this to alert.
     @Published var showCompletionAlert: Bool = false
 
     private var plannedSeconds: Int = 0
-    /// Seconds actually spent working this session (ticks while running).
-    private var elapsedSeconds: Int = 0
     /// Wall-clock time the current session started, used when logging the record.
     private var sessionStartedAt: Date?
     private var timer: Timer?
@@ -29,19 +39,26 @@ final class SessionController: ObservableObject {
 
     var isActive: Bool { activeTask != nil }
 
-    /// Progress from 0 (just started) to 1 (finished).
+    /// Countdown progress from 0 (just started) to 1 (finished).
+    /// Always 0 in stopwatch mode (there is no fixed end).
     var progress: Double {
-        guard plannedSeconds > 0 else { return 0 }
+        guard mode == .countdown, plannedSeconds > 0 else { return 0 }
         return Double(plannedSeconds - remainingSeconds) / Double(plannedSeconds)
     }
 
     // MARK: - Controls
 
-    func start(task: TaskItem, minutes: Int) {
+    func start(task: TaskItem, mode: SessionMode, minutes: Int) {
         stopTimer()
         activeTask = task
-        plannedSeconds = max(1, minutes * 60)
-        remainingSeconds = plannedSeconds
+        self.mode = mode
+        if mode == .countdown {
+            plannedSeconds = max(1, minutes * 60)
+            remainingSeconds = plannedSeconds
+        } else {
+            plannedSeconds = 0
+            remainingSeconds = 0
+        }
         elapsedSeconds = 0
         sessionStartedAt = Date()
         isPaused = false
@@ -86,6 +103,7 @@ final class SessionController: ObservableObject {
     private func tick() {
         guard isRunning else { return }
         elapsedSeconds += 1
+        guard mode == .countdown else { return }
         remainingSeconds -= 1
         if remainingSeconds <= 0 {
             finish()

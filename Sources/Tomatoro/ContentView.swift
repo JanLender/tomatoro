@@ -7,6 +7,9 @@ struct ContentView: View {
     @State private var selectedTaskID: TaskItem.ID?
     @State private var newTaskName: String = ""
     @State private var minutes: Int = 25
+    @State private var sessionMode: SessionMode = .countdown
+    @State private var showingManualEntry = false
+    @State private var showingDailySummary = false
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
@@ -21,6 +24,18 @@ struct ContentView: View {
                 .frame(minWidth: 320)
         }
         .navigationTitle("Tomatoro")
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    showingDailySummary = true
+                } label: {
+                    Label("Daily Summary", systemImage: "calendar")
+                }
+            }
+        }
+        .sheet(isPresented: $showingDailySummary) {
+            DailySummaryView()
+        }
         .alert("Time's up!", isPresented: $session.showCompletionAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -88,19 +103,40 @@ struct ContentView: View {
                 Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
 
-                Stepper(value: $minutes, in: 1...180, step: 5) {
-                    Text("Duration: \(minutes) min")
+                Picker("Mode", selection: $sessionMode) {
+                    Text("Countdown").tag(SessionMode.countdown)
+                    Text("Stopwatch").tag(SessionMode.stopwatch)
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
                 .frame(maxWidth: 220)
 
+                if sessionMode == .countdown {
+                    Stepper(value: $minutes, in: 1...180, step: 5) {
+                        Text("Duration: \(minutes) min")
+                    }
+                    .frame(maxWidth: 220)
+                } else {
+                    Text("Counts up until you stop it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Button {
-                    session.start(task: task, minutes: minutes)
+                    session.start(task: task, mode: sessionMode, minutes: minutes)
                 } label: {
                     Label("Start", systemImage: "play.fill")
                         .frame(maxWidth: 160)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+
+                Button {
+                    showingManualEntry = true
+                } label: {
+                    Label("Add record manually", systemImage: "plus.circle")
+                }
+                .buttonStyle(.link)
             } else {
                 ContentUnavailableView(
                     "Pick a task",
@@ -111,6 +147,13 @@ struct ContentView: View {
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingManualEntry) {
+            if let task = selectedTask {
+                ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds in
+                    store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, to: task)
+                }
+            }
+        }
     }
 
     private var activeSessionView: some View {
@@ -122,14 +165,23 @@ struct ContentView: View {
             ZStack {
                 Circle()
                     .stroke(Color.secondary.opacity(0.2), lineWidth: 12)
-                Circle()
-                    .trim(from: 0, to: session.progress)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.25), value: session.progress)
-                Text(session.remainingSeconds.asClock)
-                    .font(.system(size: 44, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                if session.mode == .countdown {
+                    Circle()
+                        .trim(from: 0, to: session.progress)
+                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.25), value: session.progress)
+                }
+                VStack(spacing: 4) {
+                    Text(session.mode == .countdown
+                         ? session.remainingSeconds.asClock
+                         : session.elapsedSeconds.asClock)
+                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                    Text(session.mode == .countdown ? "remaining" : "elapsed")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(width: 200, height: 200)
 
@@ -176,5 +228,116 @@ private struct TaskRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A small sheet for logging a work record by hand: when it started and how long it lasted.
+private struct ManualRecordSheet: View {
+    let taskName: String
+    let onSave: (Date, Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var startedAt = Date()
+    @State private var hours = 0
+    @State private var minutes = 25
+    @State private var hoursValid = true
+    @State private var minutesValid = true
+
+    private var durationSeconds: Int { hours * 3600 + minutes * 60 }
+    private var inputsValid: Bool { hoursValid && minutesValid }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Add record")
+                .font(.headline)
+            Text(taskName)
+                .foregroundStyle(.secondary)
+
+            DatePicker("Started", selection: $startedAt)
+
+            HStack(spacing: 16) {
+                NumberStepperField(label: "Hours", value: $hours, range: 0...99, isValid: $hoursValid)
+                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid)
+            }
+
+            if inputsValid {
+                Text("Duration: \(durationSeconds.asHoursMinutes)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Enter whole numbers (hours 0–99, minutes 0–59).")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Add") {
+                    onSave(startedAt, durationSeconds)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!inputsValid || durationSeconds == 0)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
+    }
+}
+
+/// An integer input that can be typed directly or nudged with a stepper.
+///
+/// Non-numeric or out-of-range text is *not* silently discarded: the field
+/// turns red and reports `isValid = false` so callers can block saving.
+/// Reused wherever a duration component is edited.
+private struct NumberStepperField: View {
+    let label: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    @Binding var isValid: Bool
+
+    @State private var text: String
+
+    init(label: String, value: Binding<Int>, range: ClosedRange<Int>, isValid: Binding<Bool>) {
+        self.label = label
+        self._value = value
+        self.range = range
+        self._isValid = isValid
+        self._text = State(initialValue: String(value.wrappedValue))
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(label):")
+            TextField(label, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 48)
+                .labelsHidden()
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(isValid ? Color.clear : Color.red, lineWidth: 1)
+                )
+                .onChange(of: text) { _, newText in
+                    validate(newText)
+                }
+            Stepper(label, value: $value, in: range)
+                .labelsHidden()
+                .onChange(of: value) { _, newValue in
+                    let synced = String(newValue)
+                    if synced != text { text = synced }
+                }
+        }
+    }
+
+    private func validate(_ input: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let parsed = Int(trimmed), range.contains(parsed) {
+            value = parsed
+            isValid = true
+        } else {
+            isValid = false
+        }
     }
 }

@@ -49,7 +49,7 @@ swift run
 - `Sources/Tomatoro/SessionController.swift` — drives the countdown and records elapsed time.
 - `Sources/Tomatoro/ContentView.swift` — the SwiftUI user interface.
 - `Sources/Tomatoro/TomatoroApp.swift` — the app entry point.
-- `scripts/build_app.sh` — compiles and wraps the binary into a `Tomatoro.app` bundle.
+- `scripts/build_app.sh` — compiles and wraps the binary into a `Tomatoro.app` bundle, generating `AppIcon.icns` from `tomatoro-icon.png`.
 
 ## Data location
 
@@ -65,4 +65,3 @@ Tasks are stored at:
 - Native notifications instead of an in-app alert
 - A menu bar item to start/stop without the main window
 - Per-session history and daily/weekly summaries
-- App icon and packaging for distribution

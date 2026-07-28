@@ -23,11 +23,27 @@ BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/$APP_NAME"
 APP_DIR="dist/$APP_NAME.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
 RES_DIR="$APP_DIR/Contents/Resources"
+ICON_SOURCE="tomatoro-icon.png"
 
 echo "==> Assembling app bundle at $APP_DIR..."
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
 cp "$BIN_PATH" "$MACOS_DIR/$APP_NAME"
+
+if [ -f "$ICON_SOURCE" ]; then
+    echo "==> Generating app icon..."
+    ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
+    mkdir -p "$ICONSET_DIR"
+    for size in 16 32 128 256 512; do
+        sips -z "$size" "$size" "$ICON_SOURCE" --out "$ICONSET_DIR/icon_${size}x${size}.png" >/dev/null
+        double=$((size * 2))
+        sips -z "$double" "$double" "$ICON_SOURCE" --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" >/dev/null
+    done
+    iconutil -c icns "$ICONSET_DIR" -o "$RES_DIR/AppIcon.icns"
+    rm -rf "$(dirname "$ICONSET_DIR")"
+else
+    echo "==> No $ICON_SOURCE found, skipping app icon."
+fi
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,6 +60,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>$APP_NAME</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundleVersion</key>
