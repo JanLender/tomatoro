@@ -32,6 +32,13 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Updates a task's description and persists the change.
+    func updateDescription(_ description: String, for task: TaskItem) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].description = description
+        save()
+    }
+
     /// Logs a completed work session against a task and persists the change.
     func addRecord(startedAt: Date, durationSeconds: Int, to task: TaskItem) {
         guard durationSeconds > 0, let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }

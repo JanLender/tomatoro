@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showingManualEntry = false
     @State private var showingDailySummary = false
     @State private var showingTaskRecords = false
+    @State private var showingEditDescription = false
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
@@ -101,6 +102,31 @@ struct ContentView: View {
             if let task = selectedTask {
                 Text(task.name)
                     .font(.title2).bold()
+
+                if task.description.isEmpty {
+                    Button {
+                        showingEditDescription = true
+                    } label: {
+                        Label("Add description", systemImage: "pencil")
+                    }
+                    .buttonStyle(.link)
+                } else {
+                    VStack(spacing: 4) {
+                        Text(task.description)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        Button {
+                            showingEditDescription = true
+                        } label: {
+                            Label("Edit description", systemImage: "pencil")
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                    .frame(maxWidth: 320)
+                }
+
                 Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
 
@@ -167,6 +193,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingTaskRecords) {
             if let task = selectedTask {
                 TaskRecordsView(taskID: task.id)
+            }
+        }
+        .sheet(isPresented: $showingEditDescription) {
+            if let task = selectedTask {
+                EditDescriptionSheet(taskName: task.name, description: task.description) { newDescription in
+                    store.updateDescription(newDescription, for: task)
+                }
             }
         }
     }
@@ -243,6 +276,50 @@ private struct TaskRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A small sheet for editing a task's free-form description.
+private struct EditDescriptionSheet: View {
+    let taskName: String
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var description: String
+
+    init(taskName: String, description: String, onSave: @escaping (String) -> Void) {
+        self.taskName = taskName
+        self.onSave = onSave
+        self._description = State(initialValue: description)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Edit description")
+                .font(.headline)
+            Text(taskName)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $description)
+                .font(.body)
+                .frame(height: 120)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") {
+                    onSave(description.trimmingCharacters(in: .whitespacesAndNewlines))
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }
 

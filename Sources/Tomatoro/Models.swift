@@ -22,13 +22,16 @@ struct WorkRecord: Identifiable, Codable, Equatable {
 struct TaskItem: Identifiable, Codable, Equatable {
     let id: UUID
     var name: String
+    /// Free-form notes about the task, e.g. what it involves or its scope.
+    var description: String
     /// The individual work sessions logged against this task.
     var records: [WorkRecord]
     let createdAt: Date
 
-    init(id: UUID = UUID(), name: String, records: [WorkRecord] = [], createdAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date()) {
         self.id = id
         self.name = name
+        self.description = description
         self.records = records
         self.createdAt = createdAt
     }
@@ -41,7 +44,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     // MARK: - Codable (with migration from the pre-records format)
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, records, createdAt
+        case id, name, description, records, createdAt
         // Legacy key from the first version, used only for migration on read.
         case totalSeconds
     }
@@ -50,6 +53,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         createdAt = try container.decode(Date.self, forKey: .createdAt)
 
         if let decodedRecords = try container.decodeIfPresent([WorkRecord].self, forKey: .records) {
@@ -67,6 +71,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
+        try container.encode(description, forKey: .description)
         try container.encode(records, forKey: .records)
         try container.encode(createdAt, forKey: .createdAt)
     }
