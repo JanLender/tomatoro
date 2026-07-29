@@ -27,13 +27,17 @@ struct TaskItem: Identifiable, Codable, Equatable {
     /// The individual work sessions logged against this task.
     var records: [WorkRecord]
     let createdAt: Date
+    /// Archived tasks are hidden by default and cannot be edited or logged
+    /// against until they are unarchived.
+    var isArchived: Bool
 
-    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date(), isArchived: Bool = false) {
         self.id = id
         self.name = name
         self.description = description
         self.records = records
         self.createdAt = createdAt
+        self.isArchived = isArchived
     }
 
     /// Total time (in seconds) across all recorded sessions, computed on demand.
@@ -44,7 +48,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     // MARK: - Codable (with migration from the pre-records format)
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, description, records, createdAt
+        case id, name, description, records, createdAt, isArchived
         // Legacy key from the first version, used only for migration on read.
         case totalSeconds
     }
@@ -55,6 +59,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         name = try container.decode(String.self, forKey: .name)
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
 
         if let decodedRecords = try container.decodeIfPresent([WorkRecord].self, forKey: .records) {
             records = decodedRecords
@@ -73,6 +78,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         try container.encode(name, forKey: .name)
         try container.encode(description, forKey: .description)
         try container.encode(records, forKey: .records)
+        try container.encode(isArchived, forKey: .isArchived)
         try container.encode(createdAt, forKey: .createdAt)
     }
 }

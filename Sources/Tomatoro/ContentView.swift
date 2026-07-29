@@ -12,9 +12,18 @@ struct ContentView: View {
     @State private var showingDailySummary = false
     @State private var showingTaskRecords = false
     @State private var showingEditDescription = false
+    @State private var showArchived = false
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
+    }
+
+    private var activeTasks: [TaskItem] {
+        store.tasks.filter { !$0.isArchived }
+    }
+
+    private var archivedTasks: [TaskItem] {
+        store.tasks.filter { $0.isArchived }
     }
 
     var body: some View {
@@ -49,16 +58,46 @@ struct ContentView: View {
 
     private var taskListPane: some View {
         VStack(spacing: 0) {
+            Toggle("Show archived", isOn: $showArchived)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+            Divider()
+
             List(selection: $selectedTaskID) {
                 Section("Tasks") {
-                    ForEach(store.tasks) { task in
+                    ForEach(activeTasks) { task in
                         TaskRow(task: task, isActive: session.activeTask?.id == task.id)
                             .tag(task.id)
                             .contextMenu {
+                                Button("Archive") {
+                                    store.setArchived(true, for: task)
+                                }
+                                .disabled(session.activeTask?.id == task.id)
                                 Button("Delete", role: .destructive) {
                                     store.deleteTask(task)
                                 }
                             }
+                    }
+                }
+
+                if showArchived && !archivedTasks.isEmpty {
+                    Section("Archived") {
+                        ForEach(archivedTasks) { task in
+                            TaskRow(task: task, isActive: false)
+                                .tag(task.id)
+                                .foregroundStyle(.secondary)
+                                .contextMenu {
+                                    Button("Unarchive") {
+                                        store.setArchived(false, for: task)
+                                    }
+                                    Button("Delete", role: .destructive) {
+                                        store.deleteTask(task)
+                                    }
+                                }
+                        }
                     }
                 }
             }
@@ -103,26 +142,36 @@ struct ContentView: View {
                 Text(task.name)
                     .font(.title2).bold()
 
+                if task.isArchived {
+                    Label("Archived", systemImage: "archivebox")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 if task.description.isEmpty {
-                    Button {
-                        showingEditDescription = true
-                    } label: {
-                        Label("Add description", systemImage: "pencil")
+                    if !task.isArchived {
+                        Button {
+                            showingEditDescription = true
+                        } label: {
+                            Label("Add description", systemImage: "pencil")
+                        }
+                        .buttonStyle(.link)
                     }
-                    .buttonStyle(.link)
                 } else {
                     VStack(spacing: 4) {
                         Text(task.description)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                        Button {
-                            showingEditDescription = true
-                        } label: {
-                            Label("Edit description", systemImage: "pencil")
+                        if !task.isArchived {
+                            Button {
+                                showingEditDescription = true
+                            } label: {
+                                Label("Edit description", systemImage: "pencil")
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
                         }
-                        .buttonStyle(.link)
-                        .font(.caption)
                     }
                     .frame(maxWidth: 320)
                 }
@@ -130,46 +179,79 @@ struct ContentView: View {
                 Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
 
-                Picker("Mode", selection: $sessionMode) {
-                    Text("Countdown").tag(SessionMode.countdown)
-                    Text("Stopwatch").tag(SessionMode.stopwatch)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 220)
-
-                if sessionMode == .countdown {
-                    Stepper(value: $minutes, in: 1...180, step: 5) {
-                        Text("Duration: \(minutes) min")
-                    }
-                    .frame(maxWidth: 220)
-                } else {
-                    Text("Counts up until you stop it.")
+                if task.isArchived {
+                    Text("Unarchive this task to start a session or log work against it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 260)
+
+                    Button {
+                        store.setArchived(false, for: task)
+                    } label: {
+                        Label("Unarchive", systemImage: "tray.and.arrow.up")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                } else {
+                    Picker("Mode", selection: $sessionMode) {
+                        Text("Countdown").tag(SessionMode.countdown)
+                        Text("Stopwatch").tag(SessionMode.stopwatch)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 220)
+
+                    if sessionMode == .countdown {
+                        Stepper(value: $minutes, in: 1...180, step: 5) {
+                            Text("Duration: \(minutes) min")
+                        }
+                        .frame(maxWidth: 220)
+                    } else {
+                        Text("Counts up until you stop it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        session.start(task: task, mode: sessionMode, minutes: minutes)
+                    } label: {
+                        Label("Start", systemImage: "play.fill")
+                            .frame(maxWidth: 160)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    HStack(spacing: 16) {
+                        Button {
+                            showingTaskRecords = true
+                        } label: {
+                            Label("View records", systemImage: "list.bullet")
+                        }
+                        .buttonStyle(.link)
+
+                        Button {
+                            showingManualEntry = true
+                        } label: {
+                            Label("Add record manually", systemImage: "plus.circle")
+                        }
+                        .buttonStyle(.link)
+                    }
+
+                    Button {
+                        store.setArchived(true, for: task)
+                    } label: {
+                        Label("Archive", systemImage: "archivebox")
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
                 }
 
-                Button {
-                    session.start(task: task, mode: sessionMode, minutes: minutes)
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                        .frame(maxWidth: 160)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                HStack(spacing: 16) {
+                if task.isArchived {
                     Button {
                         showingTaskRecords = true
                     } label: {
                         Label("View records", systemImage: "list.bullet")
-                    }
-                    .buttonStyle(.link)
-
-                    Button {
-                        showingManualEntry = true
-                    } label: {
-                        Label("Add record manually", systemImage: "plus.circle")
                     }
                     .buttonStyle(.link)
                 }
