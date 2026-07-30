@@ -6,7 +6,7 @@ struct ContentView: View {
 
     @State private var selectedTaskID: TaskItem.ID?
     @State private var newTaskName: String = ""
-    @State private var minutes: Int = 25
+    @State private var minutes: Int = SessionController.defaultCountdownMinutes
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
     @State private var showingDailySummary = false
@@ -416,7 +416,7 @@ private struct EditDescriptionSheet: View {
 }
 
 /// A small sheet for logging a work record by hand: when it started and how long it lasted.
-private struct ManualRecordSheet: View {
+struct ManualRecordSheet: View {
     let taskName: String
     let onSave: (Date, Int, String) -> Void
 

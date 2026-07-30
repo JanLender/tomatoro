@@ -12,12 +12,22 @@ struct TomatoroApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(session)
                 .frame(minWidth: 640, minHeight: 420)
         }
         .windowResizability(.contentSize)
+
+        MenuBarExtra {
+            MenuBarContentView()
+                .environmentObject(store)
+                .environmentObject(session)
+        } label: {
+            MenuBarLabel()
+                .environmentObject(session)
+        }
+        .menuBarExtraStyle(.window)
     }
 }

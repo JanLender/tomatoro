@@ -14,6 +14,9 @@ enum SessionMode: Equatable {
 /// count-up stopwatch.
 @MainActor
 final class SessionController: ObservableObject {
+    /// Countdown length used when a session is started without picking a duration (e.g. from the menu bar).
+    static let defaultCountdownMinutes = 25
+
     /// Seconds left on the countdown (unused in stopwatch mode).
     @Published private(set) var remainingSeconds: Int = 0
     /// Seconds worked so far this session; the stopwatch display counts this up.
