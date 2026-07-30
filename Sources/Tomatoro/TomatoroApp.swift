@@ -22,6 +22,7 @@ struct TomatoroApp: App {
         let settings = SettingsStore()
         _settings = StateObject(wrappedValue: settings)
         _menuBarInserted = State(initialValue: settings.showMenuBarIcon)
+        NotificationManager.shared.requestAuthorization()
     }
 
     var body: some Scene {

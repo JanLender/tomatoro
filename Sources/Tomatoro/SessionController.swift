@@ -1,5 +1,4 @@
 import Foundation
-import AppKit
 
 /// How the active session measures time.
 enum SessionMode: Equatable {
@@ -23,8 +22,6 @@ final class SessionController: ObservableObject {
     @Published private(set) var mode: SessionMode = .countdown
     @Published private(set) var isRunning: Bool = false
     @Published private(set) var isPaused: Bool = false
-    /// Set to true when the countdown reaches zero; the UI observes this to alert.
-    @Published var showCompletionAlert: Bool = false
     /// Work log note for the session in progress. Editable before starting
     /// and while running; saved onto the record when the session ends.
     @Published var description: String = ""
@@ -120,8 +117,9 @@ final class SessionController: ObservableObject {
         isRunning = false
         isPaused = false
         remainingSeconds = 0
-        notifyUser()
-        showCompletionAlert = true
+        if let taskName = activeTask?.name {
+            NotificationManager.shared.notifyCountdownFinished(taskName: taskName)
+        }
     }
 
     private func recordElapsed() {
@@ -141,10 +139,5 @@ final class SessionController: ObservableObject {
         elapsedSeconds = 0
         sessionStartedAt = nil
         description = ""
-    }
-
-    private func notifyUser() {
-        NSSound.beep()
-        NSApp.activate(ignoringOtherApps: true)
     }
 }

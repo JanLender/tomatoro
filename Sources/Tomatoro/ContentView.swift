@@ -55,11 +55,6 @@ struct ContentView: View {
         .onChange(of: settings.defaultCountdownMinutes) { _, newValue in
             minutes = newValue
         }
-        .alert("Time's up!", isPresented: $session.showCompletionAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Your focus session has finished. Nice work!")
-        }
     }
 
     // MARK: - Task list
