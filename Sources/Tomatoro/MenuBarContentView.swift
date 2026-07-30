@@ -33,6 +33,7 @@ struct MenuBarLabel: View {
 struct MenuBarContentView: View {
     @EnvironmentObject private var store: TaskStore
     @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var settings: SettingsStore
     @Environment(\.openWindow) private var openWindow
 
     @State private var manualEntryTask: TaskItem?
@@ -84,7 +85,7 @@ struct MenuBarContentView: View {
         }
         .frame(width: 280)
         .sheet(item: $manualEntryTask) { task in
-            ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds, description in
+            ManualRecordSheet(taskName: task.name, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
                 store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
             }
         }
@@ -133,11 +134,11 @@ struct MenuBarContentView: View {
             Spacer()
 
             Button {
-                session.start(task: task, mode: .countdown, minutes: SessionController.defaultCountdownMinutes)
+                session.start(task: task, mode: .countdown, minutes: settings.defaultCountdownMinutes)
             } label: {
                 Image(systemName: "timer")
             }
-            .help("Start a \(SessionController.defaultCountdownMinutes)-minute countdown")
+            .help("Start a \(settings.defaultCountdownMinutes)-minute countdown")
             .disabled(session.isActive)
 
             Button {

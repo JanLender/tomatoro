@@ -3,10 +3,11 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: TaskStore
     @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var settings: SettingsStore
 
     @State private var selectedTaskID: TaskItem.ID?
     @State private var newTaskName: String = ""
-    @State private var minutes: Int = SessionController.defaultCountdownMinutes
+    @State private var minutes: Int = 25
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
     @State private var showingDailySummary = false
@@ -47,6 +48,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingDailySummary) {
             DailySummaryView()
+        }
+        .onAppear {
+            minutes = settings.defaultCountdownMinutes
+        }
+        .onChange(of: settings.defaultCountdownMinutes) { _, newValue in
+            minutes = newValue
         }
         .alert("Time's up!", isPresented: $session.showCompletionAlert) {
             Button("OK", role: .cancel) { }
@@ -273,7 +280,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingManualEntry) {
             if let task = selectedTask {
-                ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds, description in
+                ManualRecordSheet(taskName: task.name, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
                     store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
                 }
             }
@@ -422,11 +429,18 @@ struct ManualRecordSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var startedAt = Date()
-    @State private var hours = 0
-    @State private var minutes = 25
+    @State private var hours: Int
+    @State private var minutes: Int
     @State private var hoursValid = true
     @State private var minutesValid = true
     @State private var description = ""
+
+    init(taskName: String, defaultMinutes: Int, onSave: @escaping (Date, Int, String) -> Void) {
+        self.taskName = taskName
+        self.onSave = onSave
+        self._hours = State(initialValue: defaultMinutes / 60)
+        self._minutes = State(initialValue: defaultMinutes % 60)
+    }
 
     private var durationSeconds: Int { hours * 3600 + minutes * 60 }
     private var inputsValid: Bool { hoursValid && minutesValid }
