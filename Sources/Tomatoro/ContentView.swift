@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showingTaskRecords = false
     @State private var showingEditDescription = false
     @State private var showArchived = false
+    @State private var pendingDescription: String = ""
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
@@ -213,8 +214,13 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    TextField("What are you working on? (optional)", text: $pendingDescription)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 280)
+
                     Button {
-                        session.start(task: task, mode: sessionMode, minutes: minutes)
+                        session.start(task: task, mode: sessionMode, minutes: minutes, description: pendingDescription)
+                        pendingDescription = ""
                     } label: {
                         Label("Start", systemImage: "play.fill")
                             .frame(maxWidth: 160)
@@ -267,8 +273,8 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingManualEntry) {
             if let task = selectedTask {
-                ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds in
-                    store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, to: task)
+                ManualRecordSheet(taskName: task.name) { startedAt, durationSeconds, description in
+                    store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
                 }
             }
         }
@@ -314,6 +320,10 @@ struct ContentView: View {
                 }
             }
             .frame(width: 200, height: 200)
+
+            TextField("What are you working on? (optional)", text: $session.description)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 280)
 
             HStack(spacing: 16) {
                 Button {
@@ -408,7 +418,7 @@ private struct EditDescriptionSheet: View {
 /// A small sheet for logging a work record by hand: when it started and how long it lasted.
 private struct ManualRecordSheet: View {
     let taskName: String
-    let onSave: (Date, Int) -> Void
+    let onSave: (Date, Int, String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var startedAt = Date()
@@ -416,6 +426,7 @@ private struct ManualRecordSheet: View {
     @State private var minutes = 25
     @State private var hoursValid = true
     @State private var minutesValid = true
+    @State private var description = ""
 
     private var durationSeconds: Int { hours * 3600 + minutes * 60 }
     private var inputsValid: Bool { hoursValid && minutesValid }
@@ -444,11 +455,14 @@ private struct ManualRecordSheet: View {
                     .foregroundStyle(.red)
             }
 
+            TextField("Description (optional)", text: $description)
+                .textFieldStyle(.roundedBorder)
+
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                 Button("Add") {
-                    onSave(startedAt, durationSeconds)
+                    onSave(startedAt, durationSeconds, description.trimmingCharacters(in: .whitespacesAndNewlines))
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

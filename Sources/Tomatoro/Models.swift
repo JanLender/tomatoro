@@ -7,11 +7,36 @@ struct WorkRecord: Identifiable, Codable, Equatable {
     let startedAt: Date
     /// Time actually worked during the session, in seconds.
     var durationSeconds: Int
+    /// Free-form note about what was done during this session.
+    var description: String
 
-    init(id: UUID = UUID(), startedAt: Date, durationSeconds: Int) {
+    init(id: UUID = UUID(), startedAt: Date, durationSeconds: Int, description: String = "") {
         self.id = id
         self.startedAt = startedAt
         self.durationSeconds = durationSeconds
+        self.description = description
+    }
+
+    // MARK: - Codable (with migration for records saved before `description` existed)
+
+    private enum CodingKeys: String, CodingKey {
+        case id, startedAt, durationSeconds, description
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        durationSeconds = try container.decode(Int.self, forKey: .durationSeconds)
+        description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encode(durationSeconds, forKey: .durationSeconds)
+        try container.encode(description, forKey: .description)
     }
 }
 

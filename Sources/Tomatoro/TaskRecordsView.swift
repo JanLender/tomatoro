@@ -7,6 +7,13 @@ struct TaskRecordsView: View {
     let taskID: TaskItem.ID
 
     @Environment(\.dismiss) private var dismiss
+    @State private var editingRecord: EditingRecord?
+
+    private struct EditingRecord: Identifiable {
+        let id: WorkRecord.ID
+        let description: String
+        let subtitle: String
+    }
 
     private var task: TaskItem? {
         store.tasks.first { $0.id == taskID }
@@ -52,11 +59,33 @@ struct TaskRecordsView: View {
                         ForEach(groupedByDay(task.records)) { day in
                             Section {
                                 ForEach(day.records) { record in
-                                    HStack {
-                                        Text(record.startedAt, style: .time)
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(record.startedAt, style: .time)
+                                            if !record.description.isEmpty {
+                                                Text(record.description)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
                                         Spacer()
                                         Text(record.durationSeconds.asClock)
                                             .monospacedDigit()
+                                    }
+                                    .contentShape(Rectangle())
+                                    .contextMenu {
+                                        Button(record.description.isEmpty ? "Add description" : "Edit description") {
+                                            editingRecord = EditingRecord(
+                                                id: record.id,
+                                                description: record.description,
+                                                subtitle: "\(record.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(record.durationSeconds.asHoursMinutes)"
+                                            )
+                                        }
+                                        if !record.description.isEmpty {
+                                            Button("Delete description", role: .destructive) {
+                                                store.updateRecordDescription("", recordID: record.id, in: task)
+                                            }
+                                        }
                                     }
                                 }
                             } header: {
@@ -88,5 +117,56 @@ struct TaskRecordsView: View {
         }
         .padding(20)
         .frame(width: 420, height: 520)
+        .sheet(item: $editingRecord) { editing in
+            if let task {
+                EditRecordDescriptionSheet(subtitle: editing.subtitle, description: editing.description) { newDescription in
+                    store.updateRecordDescription(newDescription, recordID: editing.id, in: task)
+                }
+            }
+        }
+    }
+}
+
+/// A small sheet for editing a single work record's free-form description.
+private struct EditRecordDescriptionSheet: View {
+    let subtitle: String
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var description: String
+
+    init(subtitle: String, description: String, onSave: @escaping (String) -> Void) {
+        self.subtitle = subtitle
+        self.onSave = onSave
+        self._description = State(initialValue: description)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Edit record description")
+                .font(.headline)
+            Text(subtitle)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $description)
+                .font(.body)
+                .frame(height: 120)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") {
+                    onSave(description.trimmingCharacters(in: .whitespacesAndNewlines))
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }

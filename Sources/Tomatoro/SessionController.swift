@@ -25,6 +25,9 @@ final class SessionController: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     /// Set to true when the countdown reaches zero; the UI observes this to alert.
     @Published var showCompletionAlert: Bool = false
+    /// Work log note for the session in progress. Editable before starting
+    /// and while running; saved onto the record when the session ends.
+    @Published var description: String = ""
 
     private var plannedSeconds: Int = 0
     /// Wall-clock time the current session started, used when logging the record.
@@ -48,10 +51,11 @@ final class SessionController: ObservableObject {
 
     // MARK: - Controls
 
-    func start(task: TaskItem, mode: SessionMode, minutes: Int) {
+    func start(task: TaskItem, mode: SessionMode, minutes: Int, description: String = "") {
         stopTimer()
         activeTask = task
         self.mode = mode
+        self.description = description
         if mode == .countdown {
             plannedSeconds = max(1, minutes * 60)
             remainingSeconds = plannedSeconds
@@ -122,7 +126,7 @@ final class SessionController: ObservableObject {
 
     private func recordElapsed() {
         if let task = activeTask, let startedAt = sessionStartedAt, elapsedSeconds > 0 {
-            store.addRecord(startedAt: startedAt, durationSeconds: elapsedSeconds, to: task)
+            store.addRecord(startedAt: startedAt, durationSeconds: elapsedSeconds, description: description, to: task)
         }
         elapsedSeconds = 0
     }
@@ -136,6 +140,7 @@ final class SessionController: ObservableObject {
         plannedSeconds = 0
         elapsedSeconds = 0
         sessionStartedAt = nil
+        description = ""
     }
 
     private func notifyUser() {

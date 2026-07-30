@@ -47,10 +47,18 @@ final class TaskStore: ObservableObject {
     }
 
     /// Logs a completed work session against a task and persists the change.
-    func addRecord(startedAt: Date, durationSeconds: Int, to task: TaskItem) {
+    func addRecord(startedAt: Date, durationSeconds: Int, description: String = "", to task: TaskItem) {
         guard durationSeconds > 0, let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        let record = WorkRecord(startedAt: startedAt, durationSeconds: durationSeconds)
+        let record = WorkRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description)
         tasks[index].records.append(record)
+        save()
+    }
+
+    /// Updates a single work record's description and persists the change.
+    func updateRecordDescription(_ description: String, recordID: WorkRecord.ID, in task: TaskItem) {
+        guard let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
+              let recordIndex = tasks[taskIndex].records.firstIndex(where: { $0.id == recordID }) else { return }
+        tasks[taskIndex].records[recordIndex].description = description
         save()
     }
 
