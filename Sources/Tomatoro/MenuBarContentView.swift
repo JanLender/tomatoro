@@ -1,14 +1,27 @@
 import SwiftUI
 import AppKit
 
-/// The menu bar (status item) icon, showing at a glance whether a session
-/// is idle, counting, or paused, plus the live remaining/elapsed time.
+/// The menu bar (status item) icon: a colored dot — green while anything is
+/// being tracked, white otherwise — plus the live remaining/elapsed time
+/// while a session is running.
+///
+/// This is a hand-drawn `NSImage`, not a SwiftUI `Shape` or a tinted
+/// `Image(systemName:)`. Both of those were tried and neither showed up in
+/// the actual menu bar: `MenuBarExtra`'s label has documented limitations
+/// rendering arbitrary custom `View` content, and macOS automatically
+/// renders SF Symbol status-item icons as monochrome "template" images,
+/// discarding any `.foregroundStyle` color regardless of how it's applied
+/// (per Apple's own `NSImage.isTemplate` documentation: a template image is
+/// filled with the system's own color, and any original color is removed).
+/// Drawing the dot into a real `NSImage` via `NSImage(size:flipped:drawingHandler:)`
+/// — Apple's documented replacement for manual `lockFocus`/`unlockFocus`
+/// drawing — and explicitly setting `isTemplate = false` is the approach
+/// that reliably preserves custom color for a status item icon.
 struct MenuBarLabel: View {
     @EnvironmentObject private var session: SessionController
 
-    private var iconName: String {
-        guard session.isActive else { return "timer" }
-        return session.isPaused ? "pause.circle" : "timer"
+    private var indicatorColor: NSColor {
+        session.isActive ? .systemGreen : .white
     }
 
     private var timeText: String? {
@@ -18,12 +31,22 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: iconName)
+            Image(nsImage: Self.dotImage(color: indicatorColor))
             if let timeText {
                 Text(timeText)
                     .monospacedDigit()
             }
         }
+    }
+
+    private static func dotImage(color: NSColor, diameter: CGFloat = 12) -> NSImage {
+        let image = NSImage(size: NSSize(width: diameter, height: diameter), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 
