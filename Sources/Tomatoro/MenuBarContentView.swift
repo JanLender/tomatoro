@@ -2,8 +2,9 @@ import SwiftUI
 import AppKit
 
 /// The menu bar (status item) icon: the "timer" glyph, colored green while
-/// anything is being tracked and white otherwise, plus the live remaining/
-/// elapsed time while a session is running.
+/// anything is being tracked, red when idle past the configured threshold
+/// (if the idle-reminder icon setting is on), and white otherwise, plus the
+/// live remaining/elapsed time while a session is running.
 ///
 /// The glyph is a real bitmap `NSImage`, not a SwiftUI `Shape` or a plain
 /// `.foregroundStyle`-tinted `Image(systemName:)` — both were tried and
@@ -23,9 +24,17 @@ import AppKit
 /// being stripped back out by the status item.
 struct MenuBarLabel: View {
     @EnvironmentObject private var session: SessionController
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var idleReminder: IdleReminderController
 
     private var indicatorColor: NSColor {
-        session.isActive ? .systemGreen : .white
+        if session.isActive {
+            return .systemGreen
+        }
+        if idleReminder.isIdle && settings.idleReminderHighlightIcon {
+            return .systemRed
+        }
+        return .white
     }
 
     private var timeText: String? {

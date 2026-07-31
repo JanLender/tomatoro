@@ -25,6 +25,16 @@ final class NotificationManager: NSObject, @MainActor UNUserNotificationCenterDe
         UNUserNotificationCenter.current().add(request)
     }
 
+    func notifyIdle() {
+        let content = UNMutableNotificationContent()
+        content.title = "Nothing being tracked"
+        content.body = "Start a task in Tomatoro to log your time."
+        content.sound = .default
+
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     /// Shows the banner even while Tomatoro is the frontmost app (macOS
     /// suppresses it by default otherwise).
     func userNotificationCenter(

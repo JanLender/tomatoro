@@ -5,6 +5,7 @@ struct TomatoroApp: App {
     @StateObject private var store: TaskStore
     @StateObject private var session: SessionController
     @StateObject private var settings: SettingsStore
+    @StateObject private var idleReminder: IdleReminderController
     // MenuBarExtra's `isInserted` binding must not be rooted directly in an
     // ObservableObject's @Published property: SwiftUI writes back to it when
     // inserting/removing the status item, and that write re-triggers the
@@ -18,9 +19,11 @@ struct TomatoroApp: App {
     init() {
         let store = TaskStore()
         _store = StateObject(wrappedValue: store)
-        _session = StateObject(wrappedValue: SessionController(store: store))
+        let session = SessionController(store: store)
+        _session = StateObject(wrappedValue: session)
         let settings = SettingsStore()
         _settings = StateObject(wrappedValue: settings)
+        _idleReminder = StateObject(wrappedValue: IdleReminderController(session: session, settings: settings))
         _menuBarInserted = State(initialValue: settings.showMenuBarIcon)
         NotificationManager.shared.requestAuthorization()
     }
@@ -43,6 +46,8 @@ struct TomatoroApp: App {
         } label: {
             MenuBarLabel()
                 .environmentObject(session)
+                .environmentObject(settings)
+                .environmentObject(idleReminder)
         }
         .menuBarExtraStyle(.window)
         .onChange(of: menuBarInserted) { _, newValue in

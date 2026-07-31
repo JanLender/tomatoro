@@ -8,18 +8,62 @@ struct SettingsView: View {
     @Binding var showMenuBarIcon: Bool
 
     var body: some View {
-        Form {
-            Stepper(value: $settings.defaultCountdownMinutes, in: 1...180, step: 5) {
-                Text("Default countdown: \(settings.defaultCountdownMinutes) min")
+        VStack(alignment: .leading, spacing: 14) {
+            row("Default countdown") {
+                Stepper("\(settings.defaultCountdownMinutes) min", value: $settings.defaultCountdownMinutes, in: 1...180, step: 5)
+                    .fixedSize()
             }
 
-            Stepper(value: $settings.defaultManualRecordMinutes, in: 1...180, step: 5) {
-                Text("Default manual record: \(settings.defaultManualRecordMinutes) min")
+            row("Default manual record") {
+                Stepper("\(settings.defaultManualRecordMinutes) min", value: $settings.defaultManualRecordMinutes, in: 1...180, step: 5)
+                    .fixedSize()
             }
 
-            Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
+            row("Show menu bar icon") {
+                Toggle("", isOn: $showMenuBarIcon)
+                    .labelsHidden()
+            }
+
+            Divider()
+
+            Text("Idle Reminders")
+                .font(.headline)
+
+            row("Remind me when nothing is being tracked") {
+                Toggle("", isOn: $settings.idleReminderEnabled)
+                    .labelsHidden()
+            }
+
+            if settings.idleReminderEnabled {
+                row("Idle threshold") {
+                    Stepper("\(settings.idleReminderMinutes) min", value: $settings.idleReminderMinutes, in: 1...120, step: 5)
+                        .fixedSize()
+                }
+
+                row("Send a notification") {
+                    Toggle("", isOn: $settings.idleReminderNotify)
+                        .labelsHidden()
+                }
+
+                row("Turn the menu bar icon red") {
+                    Toggle("", isOn: $settings.idleReminderHighlightIcon)
+                        .labelsHidden()
+                }
+            }
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: 420)
+    }
+
+    /// A settings row: label flush left, control flush right — kept
+    /// consistent regardless of whether the control is a Stepper or a
+    /// Toggle, unlike `Form`'s automatic (and inconsistent) alignment.
+    @ViewBuilder
+    private func row<Content: View>(_ label: String, @ViewBuilder control: () -> Content) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            control()
+        }
     }
 }
