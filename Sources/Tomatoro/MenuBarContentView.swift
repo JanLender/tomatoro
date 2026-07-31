@@ -1,22 +1,26 @@
 import SwiftUI
 import AppKit
 
-/// The menu bar (status item) icon: a colored dot — green while anything is
-/// being tracked, white otherwise — plus the live remaining/elapsed time
-/// while a session is running.
+/// The menu bar (status item) icon: the "timer" glyph, colored green while
+/// anything is being tracked and white otherwise, plus the live remaining/
+/// elapsed time while a session is running.
 ///
-/// This is a hand-drawn `NSImage`, not a SwiftUI `Shape` or a tinted
-/// `Image(systemName:)`. Both of those were tried and neither showed up in
-/// the actual menu bar: `MenuBarExtra`'s label has documented limitations
-/// rendering arbitrary custom `View` content, and macOS automatically
-/// renders SF Symbol status-item icons as monochrome "template" images,
-/// discarding any `.foregroundStyle` color regardless of how it's applied
-/// (per Apple's own `NSImage.isTemplate` documentation: a template image is
-/// filled with the system's own color, and any original color is removed).
-/// Drawing the dot into a real `NSImage` via `NSImage(size:flipped:drawingHandler:)`
-/// — Apple's documented replacement for manual `lockFocus`/`unlockFocus`
-/// drawing — and explicitly setting `isTemplate = false` is the approach
-/// that reliably preserves custom color for a status item icon.
+/// The glyph is a real bitmap `NSImage`, not a SwiftUI `Shape` or a plain
+/// `.foregroundStyle`-tinted `Image(systemName:)` — both were tried and
+/// neither showed up in the actual menu bar: `MenuBarExtra`'s label has
+/// documented limitations rendering arbitrary custom `View` content, and
+/// macOS automatically renders SF Symbol status-item icons as monochrome
+/// "template" images, discarding any applied color (per Apple's own
+/// `NSImage.isTemplate` documentation: a template image is filled with the
+/// system's own color, and any original color is removed).
+///
+/// Instead, the symbol is rendered into a real bitmap via
+/// `withSymbolConfiguration`, then recolored with the standard AppKit
+/// template-tinting recipe — fill its bounds with the target color using
+/// the `.sourceIn` blend mode, which replaces color only where the
+/// symbol's own pixels are already opaque, preserving its shape — and
+/// finally marked `isTemplate = false` so the color survives instead of
+/// being stripped back out by the status item.
 struct MenuBarLabel: View {
     @EnvironmentObject private var session: SessionController
 
@@ -31,7 +35,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(nsImage: Self.dotImage(color: indicatorColor))
+            Image(nsImage: Self.timerIcon(color: indicatorColor))
             if let timeText {
                 Text(timeText)
                     .monospacedDigit()
@@ -39,7 +43,25 @@ struct MenuBarLabel: View {
         }
     }
 
-    private static func dotImage(color: NSColor, diameter: CGFloat = 12) -> NSImage {
+    private static func timerIcon(color: NSColor, pointSize: CGFloat = 14) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+        guard let symbol = NSImage(systemSymbolName: "timer", accessibilityDescription: "Tomatoro")?
+            .withSymbolConfiguration(config),
+            let tinted = symbol.copy() as? NSImage
+        else {
+            return dotFallback(color: color)
+        }
+
+        tinted.lockFocus()
+        color.set()
+        NSRect(origin: .zero, size: tinted.size).fill(using: .sourceIn)
+        tinted.unlockFocus()
+        tinted.isTemplate = false
+        return tinted
+    }
+
+    /// Used only if the SF Symbol lookup above ever fails.
+    private static func dotFallback(color: NSColor, diameter: CGFloat = 12) -> NSImage {
         let image = NSImage(size: NSSize(width: diameter, height: diameter), flipped: false) { rect in
             color.setFill()
             NSBezierPath(ovalIn: rect).fill()
