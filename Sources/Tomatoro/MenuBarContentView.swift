@@ -2,9 +2,12 @@ import SwiftUI
 import AppKit
 
 /// The menu bar (status item) icon: the "timer" glyph, colored green while
-/// anything is being tracked, red when idle past the configured threshold
-/// (if the idle-reminder icon setting is on), and white otherwise, plus the
-/// live remaining/elapsed time while a session is running.
+/// anything is being tracked; red whenever nothing is being tracked *and*
+/// both the "Idle Reminders" master switch and "Turn the menu bar icon red"
+/// setting are on (immediately — this is independent of the idle-reminder
+/// notification's minutes-based threshold, which only gates when the
+/// repeating notification fires, not the icon color); white otherwise. Also
+/// shows the live remaining/elapsed time while a session is running.
 ///
 /// The glyph is a real bitmap `NSImage`, not a SwiftUI `Shape` or a plain
 /// `.foregroundStyle`-tinted `Image(systemName:)` — both were tried and
@@ -23,15 +26,20 @@ import AppKit
 /// finally marked `isTemplate = false` so the color survives instead of
 /// being stripped back out by the status item.
 struct MenuBarLabel: View {
-    @EnvironmentObject private var session: SessionController
-    @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var idleReminder: IdleReminderController
+    // Explicit @ObservedObject parameters, not @EnvironmentObject: SwiftUI's
+    // MenuBarExtra label has documented cases where environment-injected
+    // ObservableObjects don't reliably trigger a re-render for state that
+    // changes via a background timer (see Apple Developer Forums thread
+    // 720625, "SwiftUI MenuBarExtra not updating when State changes") —
+    // passing the objects directly as init parameters is the verified fix.
+    @ObservedObject var session: SessionController
+    @ObservedObject var settings: SettingsStore
 
     private var indicatorColor: NSColor {
         if session.isActive {
             return .systemGreen
         }
-        if idleReminder.isIdle && settings.idleReminderHighlightIcon {
+        if settings.idleReminderEnabled && settings.idleReminderHighlightIcon {
             return .systemRed
         }
         return .white
@@ -52,19 +60,34 @@ struct MenuBarLabel: View {
         }
     }
 
+    /// Builds a fresh, independent bitmap every call — deliberately not
+    /// `symbol.copy()` + `lockFocus()`/`unlockFocus()` mutating the
+    /// system-vended SF Symbol image in place. That in-place-mutation
+    /// recipe is the standard one for ordinary bitmap template images, but
+    /// SF Symbol images may be backed by a shared/cached representation
+    /// under the hood, and repeatedly mutating a copy of it produced
+    /// inconsistent results in practice (green showed correctly; red did
+    /// not, even though the same code path and the same `indicatorColor`
+    /// computation were both confirmed correct via logging). Drawing the
+    /// original symbol as a mask into a brand-new canvas via
+    /// `NSImage(size:flipped:drawingHandler:)` — the same technique
+    /// already proven reliable for the dot fallback below — and tinting
+    /// it in that same atomic drawing pass avoids touching any shared
+    /// state at all.
     private static func timerIcon(color: NSColor, pointSize: CGFloat = 14) -> NSImage {
         let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
         guard let symbol = NSImage(systemSymbolName: "timer", accessibilityDescription: "Tomatoro")?
-            .withSymbolConfiguration(config),
-            let tinted = symbol.copy() as? NSImage
+            .withSymbolConfiguration(config)
         else {
             return dotFallback(color: color)
         }
 
-        tinted.lockFocus()
-        color.set()
-        NSRect(origin: .zero, size: tinted.size).fill(using: .sourceIn)
-        tinted.unlockFocus()
+        let tinted = NSImage(size: symbol.size, flipped: false) { rect in
+            symbol.draw(in: rect)
+            color.setFill()
+            rect.fill(using: .sourceIn)
+            return true
+        }
         tinted.isTemplate = false
         return tinted
     }
@@ -85,9 +108,11 @@ struct MenuBarLabel: View {
 /// active session's controls (if any), and quick-start controls for every
 /// non-archived task.
 struct MenuBarContentView: View {
-    @EnvironmentObject private var store: TaskStore
-    @EnvironmentObject private var session: SessionController
-    @EnvironmentObject private var settings: SettingsStore
+    // See the comment on MenuBarLabel above: explicit @ObservedObject
+    // parameters instead of @EnvironmentObject, for reliable updates.
+    @ObservedObject var store: TaskStore
+    @ObservedObject var session: SessionController
+    @ObservedObject var settings: SettingsStore
     @Environment(\.openWindow) private var openWindow
 
     @State private var manualEntryTask: TaskItem?

@@ -26,6 +26,7 @@ struct TomatoroApp: App {
         _idleReminder = StateObject(wrappedValue: IdleReminderController(session: session, settings: settings))
         _menuBarInserted = State(initialValue: settings.showMenuBarIcon)
         NotificationManager.shared.requestAuthorization()
+        AppActivity.preventAppNap()
     }
 
     var body: some Scene {
@@ -38,18 +39,12 @@ struct TomatoroApp: App {
         }
         .windowResizability(.contentSize)
 
-        MenuBarExtra(isInserted: $menuBarInserted) {
-            MenuBarContentView()
-                .environmentObject(store)
-                .environmentObject(session)
-                .environmentObject(settings)
-        } label: {
-            MenuBarLabel()
-                .environmentObject(session)
-                .environmentObject(settings)
-                .environmentObject(idleReminder)
-        }
-        .menuBarExtraStyle(.window)
+        MenuBarScene(
+            store: store,
+            session: session,
+            settings: settings,
+            isInserted: $menuBarInserted
+        )
         .onChange(of: menuBarInserted) { _, newValue in
             settings.showMenuBarIcon = newValue
         }
@@ -58,5 +53,27 @@ struct TomatoroApp: App {
             SettingsView(showMenuBarIcon: $menuBarInserted)
                 .environmentObject(settings)
         }
+    }
+}
+
+/// The menu bar status item, split into its own `Scene` conformance taking
+/// its `ObservableObject`s as explicit `@ObservedObject` parameters rather
+/// than via `.environmentObject()` on an inline `MenuBarExtra` — the
+/// verified fix for `MenuBarExtra`'s label/content not reliably re-rendering
+/// when state changes from a background timer (see the comment on
+/// `MenuBarLabel`).
+private struct MenuBarScene: Scene {
+    @ObservedObject var store: TaskStore
+    @ObservedObject var session: SessionController
+    @ObservedObject var settings: SettingsStore
+    @Binding var isInserted: Bool
+
+    var body: some Scene {
+        MenuBarExtra(isInserted: $isInserted) {
+            MenuBarContentView(store: store, session: session, settings: settings)
+        } label: {
+            MenuBarLabel(session: session, settings: settings)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
