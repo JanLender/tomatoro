@@ -2,7 +2,8 @@
 
 A simple native macOS task & time tracker. Pick (or create) a task, run a
 countdown or stopwatch, and Tomatoro records how long you actually spent —
-down to individual work log entries with their own notes.
+down to individual work log entries with their own notes. A menu bar icon
+mirrors what's happening at a glance, even when the main window is closed.
 
 This is a learning project built with **Swift + SwiftUI** using the
 **Swift Package Manager** — no full Xcode installation required, just the
@@ -12,7 +13,7 @@ Command Line Tools.
 
 - Create tasks, each with an optional free-form description
 - Two session modes: countdown (with a chosen duration) or an open-ended stopwatch
-- Pause / resume / stop a running session; alert (with sound) when a countdown finishes
+- Pause / resume / stop a running session; a system notification lets you know when a countdown finishes
 - Every session is logged as an individual work record with its own optional note —
   written before starting, live while the timer runs, or added/edited/deleted afterwards
 - Add work records manually (for time not tracked live)
@@ -22,9 +23,18 @@ Command Line Tools.
 - Archive tasks you're done with — hidden by default, can't be started or edited
   while archived, toggle visibility on demand, unarchive to resume; delete works on
   archived or active tasks
-- A menu bar status item mirrors the app: idle/counting/paused at a glance, with a
-  dropdown to start a task's default countdown, start a stopwatch, add a manual
-  record, or pause/resume/stop the active session — all without opening the main window
+- A menu bar status item that mirrors tracking state at a glance: the icon turns
+  green while a session is running and shows the live remaining/elapsed time, red
+  when nothing has been tracked for a while (if idle reminders are on), white
+  otherwise. Its dropdown lets you start a task's default countdown, start a
+  stopwatch, add a manual record, or pause/resume/stop the active session — all
+  without opening the main window
+- Idle reminders: get a repeating system notification, a red menu bar icon, or
+  both, after a configurable period with nothing being tracked
+- A Settings window (⌘,) for defaults and idle-reminder behavior — default
+  countdown/manual-record duration, whether the menu bar icon is shown, and the
+  idle-reminder threshold/notification/icon options. Numeric fields can be typed
+  directly (validated, with invalid input rejected) or stepped one at a time
 - A custom app icon, and a script to package everything into a standalone `.app`
 - Tasks persist between launches as JSON, with backward-compatible migration as the format evolves
 
@@ -62,12 +72,23 @@ rerun `./scripts/build_app.sh` whenever you want to try the packaged app.
 - `Sources/Tomatoro/Models.swift` — the `TaskItem` and `WorkRecord` data models.
 - `Sources/Tomatoro/TaskStore.swift` — loads/saves tasks as JSON.
 - `Sources/Tomatoro/SessionController.swift` — drives the countdown/stopwatch and records elapsed time.
+- `Sources/Tomatoro/SettingsStore.swift` — user-configurable defaults, persisted via `UserDefaults`.
+- `Sources/Tomatoro/IdleReminderController.swift` — tracks idle time and drives idle reminders.
+- `Sources/Tomatoro/NotificationManager.swift` — posts system notifications (countdown finished, idle reminder).
+- `Sources/Tomatoro/AppActivity.swift` — keeps the app responsive in the background so idle
+  reminders and the menu bar icon stay accurate while it's not the active app.
+- `Sources/Tomatoro/NumberStepperField.swift` — shared validated numeric input, typed or stepped.
 - `Sources/Tomatoro/ContentView.swift` — the main SwiftUI window: task list, session controls, manual entry.
 - `Sources/Tomatoro/TaskRecordsView.swift` — per-task record list with day grouping and totals.
 - `Sources/Tomatoro/DailySummaryView.swift` — cross-task summary for a chosen day.
-- `Sources/Tomatoro/MenuBarContentView.swift` — the menu bar status item and its quick-access dropdown.
-- `Sources/Tomatoro/TomatoroApp.swift` — the app entry point, wiring up the main window and the menu bar scene.
+- `Sources/Tomatoro/MenuBarContentView.swift` — the menu bar status item icon and its quick-access dropdown.
+- `Sources/Tomatoro/SettingsView.swift` — the Settings window.
+- `Sources/Tomatoro/TomatoroApp.swift` — the app entry point, wiring up the main window, the menu bar scene, and Settings.
 - `scripts/build_app.sh` — compiles and wraps the binary into a `Tomatoro.app` bundle, generating `AppIcon.icns` from `tomatoro-icon.png`.
+
+Changing the code? See [DEVELOPMENT.md](DEVELOPMENT.md) for the architecture,
+a manual testing workflow, and a handful of platform gotchas worth knowing
+before touching the menu bar item, notifications, or Settings.
 
 ## Data location
 
@@ -80,7 +101,6 @@ Tasks are stored at:
 ## Roadmap ideas
 
 - Pomodoro presets (25/5) and automatic break timers
-- Native notifications instead of an in-app alert
 - Rename a task after creation
 - Weekly/monthly summaries, and exporting records (CSV, etc.)
 - Launch at login
