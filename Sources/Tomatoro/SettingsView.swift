@@ -7,16 +7,18 @@ struct SettingsView: View {
     /// directly — see the comment on `TomatoroApp.menuBarInserted` for why.
     @Binding var showMenuBarIcon: Bool
 
+    @State private var defaultCountdownValid = true
+    @State private var defaultManualRecordValid = true
+    @State private var idleThresholdValid = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             row("Default countdown") {
-                Stepper("\(settings.defaultCountdownMinutes) min", value: $settings.defaultCountdownMinutes, in: 1...180, step: 5)
-                    .fixedSize()
+                NumberStepperField(suffix: "min", value: $settings.defaultCountdownMinutes, range: 1...180, isValid: $defaultCountdownValid)
             }
 
             row("Default manual record") {
-                Stepper("\(settings.defaultManualRecordMinutes) min", value: $settings.defaultManualRecordMinutes, in: 1...180, step: 5)
-                    .fixedSize()
+                NumberStepperField(suffix: "min", value: $settings.defaultManualRecordMinutes, range: 1...180, isValid: $defaultManualRecordValid)
             }
 
             row("Show menu bar icon") {
@@ -36,8 +38,7 @@ struct SettingsView: View {
 
             if settings.idleReminderEnabled {
                 row("Idle threshold") {
-                    Stepper("\(settings.idleReminderMinutes) min", value: $settings.idleReminderMinutes, in: 1...120, step: 5)
-                        .fixedSize()
+                    NumberStepperField(suffix: "min", value: $settings.idleReminderMinutes, range: 1...120, isValid: $idleThresholdValid)
                 }
 
                 row("Send a notification") {
