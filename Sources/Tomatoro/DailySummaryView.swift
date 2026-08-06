@@ -13,6 +13,7 @@ struct DailySummaryView: View {
         let taskName: String
         let startedAt: Date
         let durationSeconds: Int
+        let description: String
     }
 
     private var entriesForDay: [Entry] {
@@ -21,7 +22,7 @@ struct DailySummaryView: View {
             .flatMap { task in
                 task.records
                     .filter { calendar.isDate($0.startedAt, inSameDayAs: selectedDate) }
-                    .map { Entry(id: $0.id, taskName: task.name, startedAt: $0.startedAt, durationSeconds: $0.durationSeconds) }
+                    .map { Entry(id: $0.id, taskName: task.name, startedAt: $0.startedAt, durationSeconds: $0.durationSeconds, description: $0.description) }
             }
             .sorted { $0.startedAt < $1.startedAt }
     }
@@ -74,12 +75,17 @@ struct DailySummaryView: View {
 
                     Section("Records") {
                         ForEach(entriesForDay) { entry in
-                            HStack {
+                            HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.taskName)
                                     Text(entry.startedAt, style: .time)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if !entry.description.isEmpty {
+                                        Text(entry.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 Text(entry.durationSeconds.asClock)
