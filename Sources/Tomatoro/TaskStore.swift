@@ -39,6 +39,13 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Renames a task and persists the change.
+    func rename(_ task: TaskItem, to name: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].name = name
+        save()
+    }
+
     /// Archives or unarchives a task and persists the change.
     func setArchived(_ isArchived: Bool, for task: TaskItem) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
