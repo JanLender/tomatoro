@@ -46,6 +46,22 @@ struct TaskRecordsView: View {
             if let task {
                 Text(task.name)
                     .foregroundStyle(.secondary)
+                    .contextMenu {
+                        Button("Copy name") {
+                            copyToClipboard(task.name)
+                        }
+                    }
+
+                if !task.description.isEmpty {
+                    Text(task.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .contextMenu {
+                            Button("Copy description") {
+                                copyToClipboard(task.description)
+                            }
+                        }
+                }
 
                 if task.records.isEmpty {
                     ContentUnavailableView(
@@ -74,6 +90,12 @@ struct TaskRecordsView: View {
                                     }
                                     .contentShape(Rectangle())
                                     .contextMenu {
+                                        if !record.description.isEmpty {
+                                            Button("Copy description") {
+                                                copyToClipboard(record.description)
+                                            }
+                                            Divider()
+                                        }
                                         Button(record.description.isEmpty ? "Add description" : "Edit description") {
                                             editingRecord = EditingRecord(
                                                 id: record.id,
@@ -128,7 +150,7 @@ struct TaskRecordsView: View {
 }
 
 /// A small sheet for editing a single work record's free-form description.
-private struct EditRecordDescriptionSheet: View {
+struct EditRecordDescriptionSheet: View {
     let subtitle: String
     let onSave: (String) -> Void
 
