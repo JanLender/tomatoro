@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// A single, non-combinable field to sort the task list by.
+enum TaskSortField: String, CaseIterable, Identifiable {
+    case created = "Date Created"
+    case lastRecordTime = "Last Record"
+    case name = "Name"
+    case totalTime = "Total Time"
+
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @EnvironmentObject private var store: TaskStore
     @EnvironmentObject private var session: SessionController
@@ -16,17 +26,37 @@ struct ContentView: View {
     @State private var showArchived = false
     @State private var pendingDescription: String = ""
     @State private var renamingTask: TaskItem?
+    @State private var sortField: TaskSortField = .created
+    @State private var sortAscending = true
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
     }
 
     private var activeTasks: [TaskItem] {
-        store.tasks.filter { !$0.isArchived }
+        sortedTasks(store.tasks.filter { !$0.isArchived })
     }
 
     private var archivedTasks: [TaskItem] {
-        store.tasks.filter { $0.isArchived }
+        sortedTasks(store.tasks.filter { $0.isArchived })
+    }
+
+    private func sortedTasks(_ tasks: [TaskItem]) -> [TaskItem] {
+        let ascending = tasks.sorted { a, b in
+            switch sortField {
+            case .created:
+                return a.createdAt < b.createdAt
+            case .lastRecordTime:
+                let aLast = a.records.map(\.startedAt).max() ?? .distantPast
+                let bLast = b.records.map(\.startedAt).max() ?? .distantPast
+                return aLast < bLast
+            case .name:
+                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            case .totalTime:
+                return a.totalSeconds < b.totalSeconds
+            }
+        }
+        return sortAscending ? ascending : ascending.reversed()
     }
 
     var body: some View {
@@ -66,7 +96,28 @@ struct ContentView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.top, 8)
+
+            HStack(spacing: 6) {
+                Picker("Sort by", selection: $sortField) {
+                    ForEach(TaskSortField.allCases) { field in
+                        Text(field.rawValue).tag(field)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.small)
+
+                Button {
+                    sortAscending.toggle()
+                } label: {
+                    Image(systemName: sortAscending ? "arrow.up" : "arrow.down")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help(sortAscending ? "Ascending" : "Descending")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
 
             Divider()
 
