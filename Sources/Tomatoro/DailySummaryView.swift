@@ -39,11 +39,33 @@ struct DailySummaryView: View {
             .sorted { $0.startedAt < $1.startedAt }
     }
 
-    private var totalsByTask: [(name: String, description: String, seconds: Int)] {
+    private var totalsByTask: [(name: String, description: String, recordDescriptions: [String], seconds: Int)] {
         let grouped = Dictionary(grouping: entriesForDay, by: \.taskName)
         return grouped
-            .map { (name: $0.key, description: $0.value.first?.taskDescription ?? "", seconds: $0.value.reduce(0) { $0 + $1.durationSeconds }) }
+            .map {
+                (
+                    name: $0.key,
+                    description: $0.value.first?.taskDescription ?? "",
+                    recordDescriptions: uniqueDescriptions($0.value),
+                    seconds: $0.value.reduce(0) { $0 + $1.durationSeconds }
+                )
+            }
             .sorted { $0.seconds > $1.seconds }
+    }
+
+    /// The non-empty record descriptions for a task's entries, in first-seen
+    /// order, with case-insensitive duplicates ("Implementation" / "implementation")
+    /// collapsed to a single line.
+    private func uniqueDescriptions(_ entries: [Entry]) -> [String] {
+        var seenLowercased = Set<String>()
+        var result: [String] = []
+        for entry in entries where !entry.description.isEmpty {
+            let key = entry.description.lowercased()
+            if seenLowercased.insert(key).inserted {
+                result.append(entry.description)
+            }
+        }
+        return result
     }
 
     private var totalSeconds: Int {
@@ -75,8 +97,15 @@ struct DailySummaryView: View {
                 List {
                     Section("By task") {
                         ForEach(totalsByTask, id: \.name) { item in
-                            HStack {
-                                Text(item.name)
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name)
+                                    ForEach(item.recordDescriptions, id: \.self) { description in
+                                        Text(description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                                 Spacer()
                                 Text(item.seconds.asHoursMinutes)
                                     .foregroundStyle(.secondary)
@@ -88,8 +117,17 @@ struct DailySummaryView: View {
                                     copyToClipboard(item.name)
                                 }
                                 if !item.description.isEmpty {
-                                    Button("Copy description") {
+                                    Button("Copy task description") {
                                         copyToClipboard(item.description)
+                                    }
+                                }
+                                if !item.recordDescriptions.isEmpty {
+                                    Divider()
+                                    Button("Copy name and descriptions") {
+                                        copyToClipboard(([item.name] + item.recordDescriptions).joined(separator: "\n"))
+                                    }
+                                    Button("Copy descriptions") {
+                                        copyToClipboard(item.recordDescriptions.joined(separator: "\n"))
                                     }
                                 }
                             }
