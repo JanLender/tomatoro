@@ -22,8 +22,10 @@ struct DailySummaryView: View {
     private struct EditingRecord: Identifiable {
         let id: WorkRecord.ID
         let taskID: TaskItem.ID
+        let taskName: String
+        let startedAt: Date
+        let durationSeconds: Int
         let description: String
-        let subtitle: String
     }
 
     private var entriesForDay: [Entry] {
@@ -123,12 +125,14 @@ struct DailySummaryView: View {
                                     }
                                 }
                                 Divider()
-                                Button(entry.description.isEmpty ? "Add description" : "Edit description") {
+                                Button("Edit record") {
                                     editingRecord = EditingRecord(
                                         id: entry.id,
                                         taskID: entry.taskID,
-                                        description: entry.description,
-                                        subtitle: "\(entry.taskName) · \(entry.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(entry.durationSeconds.asHoursMinutes)"
+                                        taskName: entry.taskName,
+                                        startedAt: entry.startedAt,
+                                        durationSeconds: entry.durationSeconds,
+                                        description: entry.description
                                     )
                                 }
                                 if !entry.description.isEmpty {
@@ -160,8 +164,13 @@ struct DailySummaryView: View {
         .frame(width: 420, height: 520)
         .sheet(item: $editingRecord) { editing in
             if let task = store.tasks.first(where: { $0.id == editing.taskID }) {
-                EditRecordDescriptionSheet(subtitle: editing.subtitle, description: editing.description) { newDescription in
-                    store.updateRecordDescription(newDescription, recordID: editing.id, in: task)
+                EditRecordSheet(
+                    taskName: editing.taskName,
+                    startedAt: editing.startedAt,
+                    durationSeconds: editing.durationSeconds,
+                    description: editing.description
+                ) { startedAt, durationSeconds, description in
+                    store.updateRecord(recordID: editing.id, in: task, startedAt: startedAt, durationSeconds: durationSeconds, description: description)
                 }
             }
         }

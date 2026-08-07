@@ -69,6 +69,17 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Updates a work record's start time, duration, and description, and persists the change.
+    func updateRecord(recordID: WorkRecord.ID, in task: TaskItem, startedAt: Date, durationSeconds: Int, description: String) {
+        guard durationSeconds > 0,
+              let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
+              let recordIndex = tasks[taskIndex].records.firstIndex(where: { $0.id == recordID }) else { return }
+        tasks[taskIndex].records[recordIndex].startedAt = startedAt
+        tasks[taskIndex].records[recordIndex].durationSeconds = durationSeconds
+        tasks[taskIndex].records[recordIndex].description = description
+        save()
+    }
+
     // MARK: - Persistence
 
     private func load() {

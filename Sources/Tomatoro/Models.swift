@@ -4,7 +4,7 @@ import Foundation
 struct WorkRecord: Identifiable, Codable, Equatable {
     let id: UUID
     /// Wall-clock time the work session began.
-    let startedAt: Date
+    var startedAt: Date
     /// Time actually worked during the session, in seconds.
     var durationSeconds: Int
     /// Free-form note about what was done during this session.
