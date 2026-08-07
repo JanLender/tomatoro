@@ -11,8 +11,9 @@ struct TaskRecordsView: View {
 
     private struct EditingRecord: Identifiable {
         let id: WorkRecord.ID
+        let startedAt: Date
+        let durationSeconds: Int
         let description: String
-        let subtitle: String
     }
 
     private var task: TaskItem? {
@@ -46,6 +47,22 @@ struct TaskRecordsView: View {
             if let task {
                 Text(task.name)
                     .foregroundStyle(.secondary)
+                    .contextMenu {
+                        Button("Copy name") {
+                            copyToClipboard(task.name)
+                        }
+                    }
+
+                if !task.description.isEmpty {
+                    Text(task.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .contextMenu {
+                            Button("Copy description") {
+                                copyToClipboard(task.description)
+                            }
+                        }
+                }
 
                 if task.records.isEmpty {
                     ContentUnavailableView(
@@ -74,11 +91,18 @@ struct TaskRecordsView: View {
                                     }
                                     .contentShape(Rectangle())
                                     .contextMenu {
-                                        Button(record.description.isEmpty ? "Add description" : "Edit description") {
+                                        if !record.description.isEmpty {
+                                            Button("Copy description") {
+                                                copyToClipboard(record.description)
+                                            }
+                                            Divider()
+                                        }
+                                        Button("Edit record") {
                                             editingRecord = EditingRecord(
                                                 id: record.id,
-                                                description: record.description,
-                                                subtitle: "\(record.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(record.durationSeconds.asHoursMinutes)"
+                                                startedAt: record.startedAt,
+                                                durationSeconds: record.durationSeconds,
+                                                description: record.description
                                             )
                                         }
                                         if !record.description.isEmpty {
@@ -119,38 +143,71 @@ struct TaskRecordsView: View {
         .frame(width: 420, height: 520)
         .sheet(item: $editingRecord) { editing in
             if let task {
-                EditRecordDescriptionSheet(subtitle: editing.subtitle, description: editing.description) { newDescription in
-                    store.updateRecordDescription(newDescription, recordID: editing.id, in: task)
+                EditRecordSheet(
+                    taskName: task.name,
+                    startedAt: editing.startedAt,
+                    durationSeconds: editing.durationSeconds,
+                    description: editing.description
+                ) { startedAt, durationSeconds, description in
+                    store.updateRecord(recordID: editing.id, in: task, startedAt: startedAt, durationSeconds: durationSeconds, description: description)
                 }
             }
         }
     }
 }
 
-/// A small sheet for editing a single work record's free-form description.
-private struct EditRecordDescriptionSheet: View {
-    let subtitle: String
-    let onSave: (String) -> Void
+/// A sheet for editing a work record's start time, duration, and description.
+struct EditRecordSheet: View {
+    let taskName: String
+    let onSave: (Date, Int, String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var startedAt: Date
+    @State private var hours: Int
+    @State private var minutes: Int
+    @State private var hoursValid = true
+    @State private var minutesValid = true
     @State private var description: String
 
-    init(subtitle: String, description: String, onSave: @escaping (String) -> Void) {
-        self.subtitle = subtitle
+    init(taskName: String, startedAt: Date, durationSeconds: Int, description: String, onSave: @escaping (Date, Int, String) -> Void) {
+        self.taskName = taskName
         self.onSave = onSave
+        self._startedAt = State(initialValue: startedAt)
+        self._hours = State(initialValue: durationSeconds / 3600)
+        self._minutes = State(initialValue: (durationSeconds % 3600) / 60)
         self._description = State(initialValue: description)
     }
 
+    private var durationSeconds: Int { hours * 3600 + minutes * 60 }
+    private var inputsValid: Bool { hoursValid && minutesValid }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Edit record description")
+            Text("Edit record")
                 .font(.headline)
-            Text(subtitle)
+            Text(taskName)
                 .foregroundStyle(.secondary)
+
+            DatePicker("Started", selection: $startedAt)
+
+            HStack(spacing: 16) {
+                NumberStepperField(label: "Hours", value: $hours, range: 0...99, isValid: $hoursValid)
+                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid)
+            }
+
+            if inputsValid {
+                Text("Duration: \(durationSeconds.asHoursMinutes)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Enter whole numbers (hours 0–99, minutes 0–59).")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
 
             TextEditor(text: $description)
                 .font(.body)
-                .frame(height: 120)
+                .frame(height: 100)
                 .overlay(
                     RoundedRectangle(cornerRadius: 5)
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
@@ -160,10 +217,11 @@ private struct EditRecordDescriptionSheet: View {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                 Button("Save") {
-                    onSave(description.trimmingCharacters(in: .whitespacesAndNewlines))
+                    onSave(startedAt, durationSeconds, description.trimmingCharacters(in: .whitespacesAndNewlines))
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(!inputsValid || durationSeconds == 0)
             }
         }
         .padding(20)

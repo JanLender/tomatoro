@@ -7,12 +7,25 @@ struct DailySummaryView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedDate: Date = Date()
+    @State private var editingRecord: EditingRecord?
 
     private struct Entry: Identifiable {
         let id: UUID
+        let taskID: TaskItem.ID
+        let taskName: String
+        let taskDescription: String
+        let startedAt: Date
+        let durationSeconds: Int
+        let description: String
+    }
+
+    private struct EditingRecord: Identifiable {
+        let id: WorkRecord.ID
+        let taskID: TaskItem.ID
         let taskName: String
         let startedAt: Date
         let durationSeconds: Int
+        let description: String
     }
 
     private var entriesForDay: [Entry] {
@@ -21,15 +34,15 @@ struct DailySummaryView: View {
             .flatMap { task in
                 task.records
                     .filter { calendar.isDate($0.startedAt, inSameDayAs: selectedDate) }
-                    .map { Entry(id: $0.id, taskName: task.name, startedAt: $0.startedAt, durationSeconds: $0.durationSeconds) }
+                    .map { Entry(id: $0.id, taskID: task.id, taskName: task.name, taskDescription: task.description, startedAt: $0.startedAt, durationSeconds: $0.durationSeconds, description: $0.description) }
             }
             .sorted { $0.startedAt < $1.startedAt }
     }
 
-    private var totalsByTask: [(name: String, seconds: Int)] {
+    private var totalsByTask: [(name: String, description: String, seconds: Int)] {
         let grouped = Dictionary(grouping: entriesForDay, by: \.taskName)
         return grouped
-            .map { (name: $0.key, seconds: $0.value.reduce(0) { $0 + $1.durationSeconds }) }
+            .map { (name: $0.key, description: $0.value.first?.taskDescription ?? "", seconds: $0.value.reduce(0) { $0 + $1.durationSeconds }) }
             .sorted { $0.seconds > $1.seconds }
     }
 
@@ -69,21 +82,66 @@ struct DailySummaryView: View {
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
                             }
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                Button("Copy name") {
+                                    copyToClipboard(item.name)
+                                }
+                                if !item.description.isEmpty {
+                                    Button("Copy description") {
+                                        copyToClipboard(item.description)
+                                    }
+                                }
+                            }
                         }
                     }
 
                     Section("Records") {
                         ForEach(entriesForDay) { entry in
-                            HStack {
+                            HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.taskName)
                                     Text(entry.startedAt, style: .time)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if !entry.description.isEmpty {
+                                        Text(entry.description)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 Text(entry.durationSeconds.asClock)
                                     .monospacedDigit()
+                            }
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                Button("Copy task name") {
+                                    copyToClipboard(entry.taskName)
+                                }
+                                if !entry.description.isEmpty {
+                                    Button("Copy description") {
+                                        copyToClipboard(entry.description)
+                                    }
+                                }
+                                Divider()
+                                Button("Edit record") {
+                                    editingRecord = EditingRecord(
+                                        id: entry.id,
+                                        taskID: entry.taskID,
+                                        taskName: entry.taskName,
+                                        startedAt: entry.startedAt,
+                                        durationSeconds: entry.durationSeconds,
+                                        description: entry.description
+                                    )
+                                }
+                                if !entry.description.isEmpty {
+                                    Button("Delete description", role: .destructive) {
+                                        if let task = store.tasks.first(where: { $0.id == entry.taskID }) {
+                                            store.updateRecordDescription("", recordID: entry.id, in: task)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -104,5 +162,17 @@ struct DailySummaryView: View {
         }
         .padding(20)
         .frame(width: 420, height: 520)
+        .sheet(item: $editingRecord) { editing in
+            if let task = store.tasks.first(where: { $0.id == editing.taskID }) {
+                EditRecordSheet(
+                    taskName: editing.taskName,
+                    startedAt: editing.startedAt,
+                    durationSeconds: editing.durationSeconds,
+                    description: editing.description
+                ) { startedAt, durationSeconds, description in
+                    store.updateRecord(recordID: editing.id, in: task, startedAt: startedAt, durationSeconds: durationSeconds, description: description)
+                }
+            }
+        }
     }
 }

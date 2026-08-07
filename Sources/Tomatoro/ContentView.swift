@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showingEditDescription = false
     @State private var showArchived = false
     @State private var pendingDescription: String = ""
+    @State private var renamingTask: TaskItem?
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
@@ -75,6 +76,9 @@ struct ContentView: View {
                         TaskRow(task: task, isActive: session.activeTask?.id == task.id)
                             .tag(task.id)
                             .contextMenu {
+                                Button("Rename") {
+                                    renamingTask = task
+                                }
                                 Button("Archive") {
                                     store.setArchived(true, for: task)
                                 }
@@ -93,6 +97,9 @@ struct ContentView: View {
                                 .tag(task.id)
                                 .foregroundStyle(.secondary)
                                 .contextMenu {
+                                    Button("Rename") {
+                                        renamingTask = task
+                                    }
                                     Button("Unarchive") {
                                         store.setArchived(false, for: task)
                                     }
@@ -117,6 +124,11 @@ struct ContentView: View {
                 .disabled(newTaskName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(8)
+        }
+        .sheet(item: $renamingTask) { task in
+            RenameTaskSheet(name: task.name) { newName in
+                store.rename(task, to: newName)
+            }
         }
     }
 
@@ -370,6 +382,48 @@ private struct TaskRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// A small sheet for renaming a task.
+private struct RenameTaskSheet: View {
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    init(name: String, onSave: @escaping (String) -> Void) {
+        self.onSave = onSave
+        self._name = State(initialValue: name)
+    }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Rename task")
+                .font(.headline)
+
+            TextField("Task name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(save)
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmedName.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 320)
+    }
+
+    private func save() {
+        guard !trimmedName.isEmpty else { return }
+        onSave(trimmedName)
+        dismiss()
     }
 }
 

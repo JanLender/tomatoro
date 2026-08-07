@@ -39,6 +39,13 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Renames a task and persists the change.
+    func rename(_ task: TaskItem, to name: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].name = name
+        save()
+    }
+
     /// Archives or unarchives a task and persists the change.
     func setArchived(_ isArchived: Bool, for task: TaskItem) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
@@ -58,6 +65,17 @@ final class TaskStore: ObservableObject {
     func updateRecordDescription(_ description: String, recordID: WorkRecord.ID, in task: TaskItem) {
         guard let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
               let recordIndex = tasks[taskIndex].records.firstIndex(where: { $0.id == recordID }) else { return }
+        tasks[taskIndex].records[recordIndex].description = description
+        save()
+    }
+
+    /// Updates a work record's start time, duration, and description, and persists the change.
+    func updateRecord(recordID: WorkRecord.ID, in task: TaskItem, startedAt: Date, durationSeconds: Int, description: String) {
+        guard durationSeconds > 0,
+              let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
+              let recordIndex = tasks[taskIndex].records.firstIndex(where: { $0.id == recordID }) else { return }
+        tasks[taskIndex].records[recordIndex].startedAt = startedAt
+        tasks[taskIndex].records[recordIndex].durationSeconds = durationSeconds
         tasks[taskIndex].records[recordIndex].description = description
         save()
     }
