@@ -35,6 +35,11 @@ struct DailySummaryView: View {
         let description: String
     }
 
+    private func changeDay(by dayOffset: Int) {
+        guard let newDate = Calendar.current.date(byAdding: .day, value: dayOffset, to: selectedDate) else { return }
+        selectedDate = newDate
+    }
+
     private func refreshEntries() {
         let calendar = Calendar.current
         entriesForDay = store.tasks
@@ -81,9 +86,27 @@ struct DailySummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            DatePicker("Day", selection: $selectedDate, displayedComponents: .date)
-                .datePickerStyle(.field)
-                .frame(maxWidth: 220)
+            HStack(spacing: 8) {
+                Button {
+                    changeDay(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.borderless)
+                .help("Previous day")
+
+                DatePicker("Day", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.field)
+                    .frame(maxWidth: 220)
+
+                Button {
+                    changeDay(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.borderless)
+                .help("Next day")
+            }
 
             if entriesForDay.isEmpty {
                 ContentUnavailableView(
