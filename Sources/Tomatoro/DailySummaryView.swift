@@ -9,6 +9,14 @@ struct DailySummaryView: View {
     @State private var selectedDate: Date = Date()
     @State private var editingRecord: EditingRecord?
 
+    /// A snapshot of the selected day's records, deliberately *not* a computed
+    /// property reading live from `store`. It's captured once when the view
+    /// appears or the date changes (see `refreshEntries()`), and again after
+    /// an edit made right here in this view — but never merely because
+    /// `store.tasks` changed elsewhere (e.g. a stopwatch/countdown finishing
+    /// and logging a new record for today while this window stays open).
+    @State private var entriesForDay: [Entry] = []
+
     private struct Entry: Identifiable {
         let id: UUID
         let taskID: TaskItem.ID
@@ -28,9 +36,9 @@ struct DailySummaryView: View {
         let description: String
     }
 
-    private var entriesForDay: [Entry] {
+    private func refreshEntries() {
         let calendar = Calendar.current
-        return store.tasks
+        entriesForDay = store.tasks
             .flatMap { task in
                 task.records
                     .filter { calendar.isDate($0.startedAt, inSameDayAs: selectedDate) }
@@ -50,7 +58,7 @@ struct DailySummaryView: View {
                     seconds: $0.value.reduce(0) { $0 + $1.durationSeconds }
                 )
             }
-            .sorted { $0.seconds > $1.seconds }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// The non-empty record descriptions for a task's entries, in first-seen
@@ -177,6 +185,7 @@ struct DailySummaryView: View {
                                     Button("Delete description", role: .destructive) {
                                         if let task = store.tasks.first(where: { $0.id == entry.taskID }) {
                                             store.updateRecordDescription("", recordID: entry.id, in: task)
+                                            refreshEntries()
                                         }
                                     }
                                 }
@@ -200,6 +209,12 @@ struct DailySummaryView: View {
         }
         .padding(20)
         .frame(width: 420, height: 520)
+        .onAppear {
+            refreshEntries()
+        }
+        .onChange(of: selectedDate) { _, _ in
+            refreshEntries()
+        }
         .sheet(item: $editingRecord) { editing in
             if let task = store.tasks.first(where: { $0.id == editing.taskID }) {
                 EditRecordSheet(
@@ -209,6 +224,7 @@ struct DailySummaryView: View {
                     description: editing.description
                 ) { startedAt, durationSeconds, description in
                     store.updateRecord(recordID: editing.id, in: task, startedAt: startedAt, durationSeconds: durationSeconds, description: description)
+                    refreshEntries()
                 }
             }
         }
