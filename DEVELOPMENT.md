@@ -7,12 +7,44 @@ For what the app does and how to build/run it, see [README.md](README.md).
 
 ## Architecture overview
 
-Tomatoro is a single SwiftUI `App` (`TomatoroApp`) with three scenes:
+Tomatoro is a single SwiftUI `App` (`TomatoroApp`) with five scenes:
 
 - `WindowGroup(id: "main")` — the main window (`ContentView`).
+- `Window(id: "dailySummary")` — the Daily Summary window (`DailySummaryView`),
+  a singleton scene: `openWindow(id: "dailySummary")` just refocuses it if it's
+  already open rather than creating a second one.
+- `WindowGroup(id: "taskRecords", for: TaskItem.ID.self)` — the Task Records
+  window (`TaskRecordsView`), one per task. Opened via
+  `openWindow(id: "taskRecords", value: task.id)`; opening the same task's ID
+  again refocuses its existing window instead of duplicating it. Use this
+  `WindowGroup(for:)` form (not a plain `Window`) for any future window whose
+  content depends on which piece of data it was opened for.
 - `MenuBarExtra` — the status item, wrapped in its own `MenuBarScene: Scene`
   (see [Gotcha 2](#2-menubarextra-doesnt-reliably-see-environmentobject-changes) for why it's split out like that).
 - `Settings` — the Settings window (`SettingsView`), reachable via ⌘, or the app menu.
+
+Both `DailySummaryView` and `TaskRecordsView` used to be `.sheet`s; they were
+converted to real window scenes so they could be moved and resized (sheets
+are pinned to their parent window and can't be either). One consequence: they
+lost their in-content title/Done-button row in favor of the window's native
+title bar and close button — don't re-add that row if you touch these views.
+
+`DailySummaryView`'s data (`entriesForDay`) is deliberately a `@State`
+snapshot, not a computed property reading live from `store`. It's rebuilt via
+`refreshEntries()` only on `.onAppear`, on `.onChange(of: selectedDate)`, and
+right after an edit made from within that same view — never merely because
+`store.tasks` changed elsewhere. Two real bugs motivated this: (1) a
+`Dictionary(grouping:by:)`-based grouping's iteration order isn't guaranteed
+stable across separate constructions of the same content, so tied rows in the
+"By task" section would visibly swap places every time the view re-rendered
+(which happens once a second while any timer is ticking anywhere in the app,
+since re-rendering a computed property re-runs the grouping from scratch);
+and (2) today's data would silently shift under the user while the window
+stayed open, if today happened to be the selected date and a background timer
+logged a new record. If you add a new field to `Entry` or a new derived view
+(`totalsByTask`, `totalSeconds`, etc.), it's safe to leave those as computed
+properties *of* `entriesForDay` — just don't make `entriesForDay` itself live
+again.
 
 State lives in a small number of `@MainActor` `ObservableObject`s, all
 constructed once in `TomatoroApp.init()` and threaded down from there:
