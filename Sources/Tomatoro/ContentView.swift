@@ -21,7 +21,6 @@ struct ContentView: View {
     @State private var minutes: Int = 25
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
-    @State private var showingTaskRecords = false
     @State private var showingEditDescription = false
     @State private var showArchived = false
     @State private var pendingDescription: String = ""
@@ -292,7 +291,7 @@ struct ContentView: View {
 
                     HStack(spacing: 16) {
                         Button {
-                            showingTaskRecords = true
+                            openWindow(id: "taskRecords", value: task.id)
                         } label: {
                             Label("View records", systemImage: "list.bullet")
                         }
@@ -317,7 +316,7 @@ struct ContentView: View {
 
                 if task.isArchived {
                     Button {
-                        showingTaskRecords = true
+                        openWindow(id: "taskRecords", value: task.id)
                     } label: {
                         Label("View records", systemImage: "list.bullet")
                     }
@@ -338,11 +337,6 @@ struct ContentView: View {
                 ManualRecordSheet(taskName: task.name, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
                     store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
                 }
-            }
-        }
-        .sheet(isPresented: $showingTaskRecords) {
-            if let task = selectedTask {
-                TaskRecordsView(taskID: task.id)
             }
         }
         .sheet(isPresented: $showingEditDescription) {

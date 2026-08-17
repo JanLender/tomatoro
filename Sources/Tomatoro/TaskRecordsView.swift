@@ -6,7 +6,6 @@ struct TaskRecordsView: View {
     @EnvironmentObject private var store: TaskStore
     let taskID: TaskItem.ID
 
-    @Environment(\.dismiss) private var dismiss
     @State private var editingRecord: EditingRecord?
 
     private struct EditingRecord: Identifiable {
@@ -36,14 +35,6 @@ struct TaskRecordsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Records")
-                    .font(.headline)
-                Spacer()
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-
             if let task {
                 Text(task.name)
                     .foregroundStyle(.secondary)
@@ -140,7 +131,8 @@ struct TaskRecordsView: View {
             }
         }
         .padding(20)
-        .frame(width: 420, height: 520)
+        .frame(minWidth: 380, idealWidth: 440, minHeight: 400, idealHeight: 540)
+        .navigationTitle(task?.name ?? "Task Records")
         .sheet(item: $editingRecord) { editing in
             if let task {
                 EditRecordSheet(

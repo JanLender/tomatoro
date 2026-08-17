@@ -45,6 +45,14 @@ struct TomatoroApp: App {
         }
         .windowResizability(.contentMinSize)
 
+        WindowGroup("Task Records", id: "taskRecords", for: TaskItem.ID.self) { $taskID in
+            if let taskID {
+                TaskRecordsView(taskID: taskID)
+                    .environmentObject(store)
+            }
+        }
+        .windowResizability(.contentMinSize)
+
         MenuBarScene(
             store: store,
             session: session,
