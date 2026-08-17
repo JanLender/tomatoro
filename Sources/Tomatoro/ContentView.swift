@@ -123,6 +123,10 @@ struct ContentView: View {
                         TaskRow(task: task, isActive: session.activeTask?.id == task.id)
                             .tag(task.id)
                             .contextMenu {
+                                Button("View Records") {
+                                    openWindow(id: "taskRecords", value: task.id)
+                                }
+                                Divider()
                                 Button("Rename") {
                                     renamingTask = task
                                 }
@@ -144,6 +148,10 @@ struct ContentView: View {
                                 .tag(task.id)
                                 .foregroundStyle(.secondary)
                                 .contextMenu {
+                                    Button("View Records") {
+                                        openWindow(id: "taskRecords", value: task.id)
+                                    }
+                                    Divider()
                                     Button("Rename") {
                                         renamingTask = task
                                     }
