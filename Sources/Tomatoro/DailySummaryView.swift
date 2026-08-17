@@ -4,7 +4,6 @@ import SwiftUI
 /// broken down by task with per-task and grand totals.
 struct DailySummaryView: View {
     @EnvironmentObject private var store: TaskStore
-    @Environment(\.dismiss) private var dismiss
 
     @State private var selectedDate: Date = Date()
     @State private var editingRecord: EditingRecord?
@@ -82,14 +81,6 @@ struct DailySummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Daily Summary")
-                    .font(.headline)
-                Spacer()
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-
             DatePicker("Day", selection: $selectedDate, displayedComponents: .date)
                 .datePickerStyle(.field)
                 .frame(maxWidth: 220)
@@ -208,7 +199,7 @@ struct DailySummaryView: View {
             }
         }
         .padding(20)
-        .frame(width: 420, height: 520)
+        .frame(minWidth: 380, idealWidth: 440, minHeight: 400, idealHeight: 540)
         .onAppear {
             refreshEntries()
         }

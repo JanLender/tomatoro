@@ -39,6 +39,12 @@ struct TomatoroApp: App {
         }
         .windowResizability(.contentSize)
 
+        Window("Daily Summary", id: "dailySummary") {
+            DailySummaryView()
+                .environmentObject(store)
+        }
+        .windowResizability(.contentMinSize)
+
         MenuBarScene(
             store: store,
             session: session,

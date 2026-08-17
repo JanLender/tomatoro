@@ -14,13 +14,13 @@ struct ContentView: View {
     @EnvironmentObject private var store: TaskStore
     @EnvironmentObject private var session: SessionController
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.openWindow) private var openWindow
 
     @State private var selectedTaskID: TaskItem.ID?
     @State private var newTaskName: String = ""
     @State private var minutes: Int = 25
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
-    @State private var showingDailySummary = false
     @State private var showingTaskRecords = false
     @State private var showingEditDescription = false
     @State private var showArchived = false
@@ -71,14 +71,11 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem {
                 Button {
-                    showingDailySummary = true
+                    openWindow(id: "dailySummary")
                 } label: {
                     Label("Daily Summary", systemImage: "calendar")
                 }
             }
-        }
-        .sheet(isPresented: $showingDailySummary) {
-            DailySummaryView()
         }
         .onAppear {
             minutes = settings.defaultCountdownMinutes
