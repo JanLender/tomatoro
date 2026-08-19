@@ -7,6 +7,7 @@ struct TaskRecordsView: View {
     let taskID: TaskItem.ID
 
     @State private var editingRecord: EditingRecord?
+    @State private var recordIDPendingDeletion: WorkRecord.ID?
 
     private struct EditingRecord: Identifiable {
         let id: WorkRecord.ID
@@ -101,6 +102,10 @@ struct TaskRecordsView: View {
                                                 store.updateRecordDescription("", recordID: record.id, in: task)
                                             }
                                         }
+                                        Divider()
+                                        Button("Delete record…", role: .destructive) {
+                                            recordIDPendingDeletion = record.id
+                                        }
                                     }
                                 }
                             } header: {
@@ -144,6 +149,22 @@ struct TaskRecordsView: View {
                     store.updateRecord(recordID: editing.id, in: task, startedAt: startedAt, durationSeconds: durationSeconds, description: description)
                 }
             }
+        }
+        .alert(
+            "Delete this record?",
+            isPresented: Binding(
+                get: { recordIDPendingDeletion != nil },
+                set: { isPresented in if !isPresented { recordIDPendingDeletion = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let task, let recordIDPendingDeletion {
+                    store.deleteRecord(recordID: recordIDPendingDeletion, in: task)
+                }
+            }
+        } message: {
+            Text("This permanently removes the record, including its time and description. This can't be undone.")
         }
     }
 }

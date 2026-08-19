@@ -80,6 +80,13 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Removes a single work record entirely and persists the change.
+    func deleteRecord(recordID: WorkRecord.ID, in task: TaskItem) {
+        guard let taskIndex = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[taskIndex].records.removeAll { $0.id == recordID }
+        save()
+    }
+
     // MARK: - Persistence
 
     private func load() {

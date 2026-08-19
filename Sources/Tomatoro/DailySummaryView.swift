@@ -7,6 +7,12 @@ struct DailySummaryView: View {
 
     @State private var selectedDate: Date = Date()
     @State private var editingRecord: EditingRecord?
+    @State private var recordPendingDeletion: PendingDeletion?
+
+    private struct PendingDeletion {
+        let id: WorkRecord.ID
+        let taskID: TaskItem.ID
+    }
 
     /// A snapshot of the selected day's records, deliberately *not* a computed
     /// property reading live from `store`. It's captured once when the view
@@ -203,6 +209,10 @@ struct DailySummaryView: View {
                                         }
                                     }
                                 }
+                                Divider()
+                                Button("Delete record…", role: .destructive) {
+                                    recordPendingDeletion = PendingDeletion(id: entry.id, taskID: entry.taskID)
+                                }
                             }
                         }
                     }
@@ -241,6 +251,23 @@ struct DailySummaryView: View {
                     refreshEntries()
                 }
             }
+        }
+        .alert(
+            "Delete this record?",
+            isPresented: Binding(
+                get: { recordPendingDeletion != nil },
+                set: { isPresented in if !isPresented { recordPendingDeletion = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let recordPendingDeletion, let task = store.tasks.first(where: { $0.id == recordPendingDeletion.taskID }) {
+                    store.deleteRecord(recordID: recordPendingDeletion.id, in: task)
+                    refreshEntries()
+                }
+            }
+        } message: {
+            Text("This permanently removes the record, including its time and description. This can't be undone.")
         }
     }
 }
