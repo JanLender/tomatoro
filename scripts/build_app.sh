@@ -30,6 +30,12 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
 cp "$BIN_PATH" "$MACOS_DIR/$APP_NAME"
 
+SDEF_SOURCE="Tomatoro.sdef"
+if [ -f "$SDEF_SOURCE" ]; then
+    echo "==> Bundling AppleScript dictionary..."
+    cp "$SDEF_SOURCE" "$RES_DIR/Tomatoro.sdef"
+fi
+
 if [ -f "$ICON_SOURCE" ]; then
     echo "==> Generating app icon..."
     ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
@@ -74,6 +80,10 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAppleScriptEnabled</key>
+    <true/>
+    <key>OSAScriptingDefinition</key>
+    <string>Tomatoro.sdef</string>
 </dict>
 </plist>
 PLIST

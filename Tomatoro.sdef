@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary title="Tomatoro Terminology" xmlns:xi="http://www.w3.org/2003/XInclude">
+    <suite name="Standard Suite" code="core" description="Common classes and commands.">
+        <xi:include href="file:///System/Library/ScriptingDefinitions/CocoaStandard.sdef" xpointer="xpointer(/dictionary/suite/*)"/>
+    </suite>
+
+    <suite name="Tomatoro Suite" code="Tmto" description="Task and record scripting for Tomatoro.">
+        <record-type name="task info" code="TkIn" description="A summary of a task.">
+            <property name="task id" code="TkID" type="text" description="The task's unique identifier."/>
+            <property name="task name" code="TkNm" type="text" description="The task's name."/>
+            <property name="task description" code="TkDs" type="text" description="The task's free-form description."/>
+        </record-type>
+
+        <class-extension extends="application" description="Adds task-related scripting to the application.">
+            <property name="tasks" code="TmTk" access="r" description="All unarchived tasks.">
+                <type type="task info" list="yes"/>
+            </property>
+        </class-extension>
+
+        <command name="create task" code="TmtoCrTk" description="Create a new task.">
+            <cocoa class="CreateTaskCommand"/>
+            <direct-parameter type="text" description="The name of the new task."/>
+            <parameter name="with description" code="CrDs" type="text" optional="yes" description="An optional free-form description for the task."/>
+            <result type="task info" description="The newly created task."/>
+        </command>
+
+        <command name="add record" code="TmtoAdRc" description="Add a completed work record to a task.">
+            <cocoa class="AddRecordCommand"/>
+            <direct-parameter type="text" description="The name or id of the task to log time against."/>
+            <parameter name="duration" code="RcDr" type="integer" description="How long the session lasted, in minutes."/>
+            <parameter name="started at" code="RcSt" type="date" optional="yes" description="When the session started. Defaults to (now minus duration)."/>
+            <parameter name="notes" code="RcNt" type="text" optional="yes" description="An optional free-form note about the session."/>
+        </command>
+    </suite>
+</dictionary>

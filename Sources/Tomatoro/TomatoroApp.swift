@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TomatoroApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store: TaskStore
     @StateObject private var session: SessionController
     @StateObject private var settings: SettingsStore
@@ -19,6 +20,7 @@ struct TomatoroApp: App {
     init() {
         let store = TaskStore()
         _store = StateObject(wrappedValue: store)
+        AppDelegate.store = store
         let session = SessionController(store: store)
         _session = StateObject(wrappedValue: session)
         let settings = SettingsStore()
