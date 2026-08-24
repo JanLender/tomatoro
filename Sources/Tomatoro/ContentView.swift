@@ -551,11 +551,21 @@ struct ManualRecordSheet: View {
             Text(taskName)
                 .foregroundStyle(.secondary)
 
-            DatePicker("Started", selection: $startedAt)
+            HStack {
+                DatePicker("Started", selection: $startedAt)
+                RoundToFiveButtons(
+                    onRoundDown: { startedAt = TimeRounding.roundedDown(startedAt) },
+                    onRoundUp: { startedAt = TimeRounding.roundedUp(startedAt) }
+                )
+            }
 
             HStack(spacing: 16) {
                 NumberStepperField(label: "Hours", value: $hours, range: 0...99, isValid: $hoursValid)
                 NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid)
+                RoundToFiveButtons(
+                    onRoundDown: { roundDuration(down: true) },
+                    onRoundUp: { roundDuration(down: false) }
+                )
             }
 
             if inputsValid {
@@ -584,5 +594,14 @@ struct ManualRecordSheet: View {
         }
         .padding(20)
         .frame(width: 360)
+    }
+
+    private func roundDuration(down: Bool) {
+        let total = hours * 60 + minutes
+        let rounded = down
+            ? TimeRounding.roundedDown(minutes: total)
+            : TimeRounding.roundedUp(minutes: total, maxMinutes: 99 * 60 + 55)
+        hours = rounded / 60
+        minutes = rounded % 60
     }
 }
