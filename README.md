@@ -50,6 +50,8 @@ Command Line Tools.
   directly (validated, with invalid input rejected) or stepped one at a time
 - A custom app icon, and a script to package everything into a standalone `.app`
 - Tasks persist between launches as JSON, with backward-compatible migration as the format evolves
+- Scriptable via AppleScript (`osascript`, Script Editor, Shortcuts) — list unarchived tasks, create a task, or log a
+  work record, creating or unarchiving the task automatically as needed; see [AUTOMATION.md](AUTOMATION.md)
 
 ## Requirements
 
@@ -98,6 +100,8 @@ rerun `./scripts/build_app.sh` whenever you want to try the packaged app.
 - `Sources/Tomatoro/MenuBarContentView.swift` — the menu bar status item icon and its quick-access dropdown.
 - `Sources/Tomatoro/SettingsView.swift` — the Settings window.
 - `Sources/Tomatoro/TomatoroApp.swift` — the app entry point, wiring up all of the app's windows and the menu bar scene.
+- `Sources/Tomatoro/Scripting.swift` — the AppleScript command implementations (`create task`, `add record`) and the `AppDelegate` that exposes `tasks`.
+- `Tomatoro.sdef` — the AppleScript dictionary; see [AUTOMATION.md](AUTOMATION.md) for usage examples.
 - `scripts/build_app.sh` — compiles and wraps the binary into a `Tomatoro.app` bundle, generating `AppIcon.icns` from `tomatoro-icon.png`.
 
 Changing the code? See [DEVELOPMENT.md](DEVELOPMENT.md) for the architecture,
