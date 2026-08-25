@@ -72,10 +72,22 @@ final class CreateTaskCommand: NSScriptCommand {
         }
     }
 
+    /// If an unarchived task of this name already exists, that task is
+    /// returned unchanged (no duplicate is created). If it exists but is
+    /// archived, it's unarchived and returned as-is. Otherwise a new task
+    /// is created with the given description.
     @MainActor
     private static func createTask(name: String, description: String) -> Result<[String: Any], ScriptingError> {
         guard !name.isEmpty else { return .failure(ScriptingError(message: "A task needs a name.")) }
         guard let store = AppDelegate.store else { return .failure(ScriptingError(message: "Tomatoro isn't ready yet.")) }
+
+        if let existing = store.tasks.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            if existing.isArchived {
+                store.setArchived(false, for: existing)
+            }
+            return .success(["taskId": existing.id.uuidString, "taskName": existing.name, "taskDescription": existing.description])
+        }
+
         let task = store.addTask(named: name)
         if !description.isEmpty {
             store.updateDescription(description, for: task)
@@ -103,6 +115,9 @@ final class AddRecordCommand: NSScriptCommand {
         return nil
     }
 
+    /// Resolves the task by name or id if it already exists (unarchiving it
+    /// first if needed), or — if `identifier` doesn't match any existing
+    /// task — creates a new task named `identifier` to log against.
     @MainActor
     private static func addRecord(identifier: String, durationMinutes: Int?, startedAtOverride: Date?, notes: String) -> Result<Void, ScriptingError> {
         guard !identifier.isEmpty else {
@@ -111,14 +126,22 @@ final class AddRecordCommand: NSScriptCommand {
         guard let store = AppDelegate.store else {
             return .failure(ScriptingError(message: "Tomatoro isn't ready yet."))
         }
-        guard let task = store.tasks.first(where: {
-            $0.name.caseInsensitiveCompare(identifier) == .orderedSame || $0.id.uuidString.caseInsensitiveCompare(identifier) == .orderedSame
-        }) else {
-            return .failure(ScriptingError(message: "No task named or identified by \"\(identifier)\"."))
-        }
         guard let durationMinutes, durationMinutes > 0 else {
             return .failure(ScriptingError(message: "\"duration\" must be a positive number of minutes."))
         }
+
+        let task: TaskItem
+        if let existing = store.tasks.first(where: {
+            $0.name.caseInsensitiveCompare(identifier) == .orderedSame || $0.id.uuidString.caseInsensitiveCompare(identifier) == .orderedSame
+        }) {
+            if existing.isArchived {
+                store.setArchived(false, for: existing)
+            }
+            task = existing
+        } else {
+            task = store.addTask(named: identifier)
+        }
+
         let durationSeconds = durationMinutes * 60
         let startedAt = startedAtOverride ?? Date().addingTimeInterval(-Double(durationSeconds))
         store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: notes, to: task)

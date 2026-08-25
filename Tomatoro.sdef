@@ -18,14 +18,14 @@
             </property>
         </class-extension>
 
-        <command name="create task" code="TmtoCrTk" description="Create a new task.">
+        <command name="create task" code="TmtoCrTk" description="Create a new task. If an unarchived task of the same name already exists, it's returned unchanged; if it exists but is archived, it's unarchived and returned.">
             <cocoa class="CreateTaskCommand"/>
             <direct-parameter type="text" description="The name of the new task."/>
             <parameter name="with description" code="CrDs" type="text" optional="yes" description="An optional free-form description for the task."/>
-            <result type="task info" description="The newly created task."/>
+            <result type="task info" description="The (possibly pre-existing) task."/>
         </command>
 
-        <command name="add record" code="TmtoAdRc" description="Add a completed work record to a task.">
+        <command name="add record" code="TmtoAdRc" description="Add a completed work record to a task. If no task matches the given name or id, one is created; if it exists but is archived, it's unarchived first.">
             <cocoa class="AddRecordCommand"/>
             <direct-parameter type="text" description="The name or id of the task to log time against."/>
             <parameter name="duration" code="RcDr" type="integer" description="How long the session lasted, in minutes."/>
