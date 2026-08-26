@@ -27,17 +27,25 @@ struct ContentView: View {
     @State private var renamingTask: TaskItem?
     @State private var sortField: TaskSortField = .created
     @State private var sortAscending = true
+    @State private var searchText = ""
 
     private var selectedTask: TaskItem? {
         store.tasks.first { $0.id == selectedTaskID }
     }
 
     private var activeTasks: [TaskItem] {
-        sortedTasks(store.tasks.filter { !$0.isArchived })
+        sortedTasks(store.tasks.filter { !$0.isArchived && matchesSearch($0) })
     }
 
     private var archivedTasks: [TaskItem] {
-        sortedTasks(store.tasks.filter { $0.isArchived })
+        sortedTasks(store.tasks.filter { $0.isArchived && matchesSearch($0) })
+    }
+
+    /// Case-insensitive left match: "ap" matches "Apple" but not "Snap".
+    private func matchesSearch(_ task: TaskItem) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        return task.name.range(of: query, options: [.caseInsensitive, .anchored]) != nil
     }
 
     private func sortedTasks(_ tasks: [TaskItem]) -> [TaskItem] {
@@ -116,6 +124,27 @@ struct ContentView: View {
             .padding(.vertical, 8)
 
             Divider()
+
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search tasks", text: $searchText)
+                    .textFieldStyle(.plain)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
 
             List(selection: $selectedTaskID) {
                 Section("Tasks") {
