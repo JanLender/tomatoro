@@ -10,7 +10,7 @@ set -euo pipefail
 
 CONFIG="${1:-release}"
 APP_NAME="Tomatoro"
-BUNDLE_ID="com.tomatoro.app"
+BUNDLE_ID="cz.lender.tomatoro"
 VERSION="0.1.0"
 
 # Move to repo root (this script lives in ./scripts).

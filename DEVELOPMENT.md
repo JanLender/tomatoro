@@ -68,6 +68,27 @@ for fields that didn't exist in older versions of `tasks.json` — check those
 before adding a new stored property to either type, and add the same kind of
 fallback rather than a hard `decode`.
 
+## Viewing logs
+
+The command to actually reach for, instead of re-deriving it each time:
+
+```bash
+# after-the-fact query
+log show --predicate 'process == "Tomatoro"' --style compact --last 10m
+
+# live tail — needed for anything logged at .debug level, which log show
+# doesn't surface unless it happens to still be in the in-memory buffer
+log stream --predicate 'process == "Tomatoro"' --style compact --level debug
+```
+
+This filters by process name, so it works regardless of the bundle
+identifier (`cz.lender.tomatoro`). Look for `Adding notification request`
+(a notification was actually scheduled with the OS) and `Publishing changes
+from within view updates` (a SwiftUI state-mutation-during-render bug, per
+[Gotcha 3](#3-menubarextraisinserted-bound-to-a-published-property--100-cpu)).
+
+Crash reports land in `~/Library/Logs/DiagnosticReports/Tomatoro-*.ips`.
+
 ## Non-obvious gotchas
 
 These cost real time to track down. If you're touching the menu bar item,
@@ -218,8 +239,8 @@ app — handy for testing a short idle-reminder threshold instead of waiting
 the default 15 minutes:
 
 ```bash
-defaults write com.tomatoro.app idleReminderEnabled -bool true
-defaults write com.tomatoro.app idleReminderMinutes -int 1
+defaults write cz.lender.tomatoro idleReminderEnabled -bool true
+defaults write cz.lender.tomatoro idleReminderMinutes -int 1
 open dist/Tomatoro.app
 ```
 
@@ -227,23 +248,9 @@ This only works *before* launch — the running app doesn't observe external
 `UserDefaults` changes, so writing keys while it's already running has no
 effect until the next launch.
 
-**Reading the system log** is the most reliable way to verify background
-behavior (timers, notifications) without needing to watch the screen:
-
-```bash
-# after-the-fact query
-log show --predicate 'process == "Tomatoro"' --style compact --last 5m
-
-# live tail — needed for anything logged at .debug level, which log show
-# doesn't surface unless it happens to still be in the in-memory buffer
-log stream --predicate 'process == "Tomatoro"' --style compact --level debug
-```
-
-Look for `Adding notification request` (a notification was actually
-scheduled with the OS) and `Publishing changes from within view updates`
-(a SwiftUI state-mutation-during-render bug, per Gotcha 3).
-
-**Crash reports** land in `~/Library/Logs/DiagnosticReports/Tomatoro-*.ips`.
+**Reading the system log and crash reports**: see [Viewing logs](#viewing-logs)
+above — the most reliable way to verify background behavior (timers,
+notifications) without needing to watch the screen.
 
 **Direct-launch with environment variables**, when you need to pass one
 (`open` doesn't forward the shell's environment):
