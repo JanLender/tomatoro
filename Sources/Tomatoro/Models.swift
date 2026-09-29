@@ -9,18 +9,25 @@ struct WorkRecord: Identifiable, Codable, Equatable {
     var durationSeconds: Int
     /// Free-form note about what was done during this session.
     var description: String
+    /// The owning task's project name at the time this record was logged
+    /// (or last cascaded — see `TaskStore.setProject` and
+    /// `TaskStore.refreshProjectName`). Denormalized plain text rather than
+    /// a project id, so it survives that project later being renamed or
+    /// deleted without needing a live lookup.
+    var project: String
 
-    init(id: UUID = UUID(), startedAt: Date, durationSeconds: Int, description: String = "") {
+    init(id: UUID = UUID(), startedAt: Date, durationSeconds: Int, description: String = "", project: String = "") {
         self.id = id
         self.startedAt = startedAt
         self.durationSeconds = durationSeconds
         self.description = description
+        self.project = project
     }
 
-    // MARK: - Codable (with migration for records saved before `description` existed)
+    // MARK: - Codable (with migration for records saved before `description`/`project` existed)
 
     private enum CodingKeys: String, CodingKey {
-        case id, startedAt, durationSeconds, description
+        case id, startedAt, durationSeconds, description, project
     }
 
     init(from decoder: Decoder) throws {
@@ -29,6 +36,7 @@ struct WorkRecord: Identifiable, Codable, Equatable {
         startedAt = try container.decode(Date.self, forKey: .startedAt)
         durationSeconds = try container.decode(Int.self, forKey: .durationSeconds)
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        project = try container.decodeIfPresent(String.self, forKey: .project) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
@@ -37,6 +45,7 @@ struct WorkRecord: Identifiable, Codable, Equatable {
         try container.encode(startedAt, forKey: .startedAt)
         try container.encode(durationSeconds, forKey: .durationSeconds)
         try container.encode(description, forKey: .description)
+        try container.encode(project, forKey: .project)
     }
 }
 
@@ -55,14 +64,24 @@ struct TaskItem: Identifiable, Codable, Equatable {
     /// Archived tasks are hidden by default and cannot be edited or logged
     /// against until they are unarchived.
     var isArchived: Bool
+    /// The registered project (see `ProjectStore`) this task is filed
+    /// under, if any.
+    var projectID: UUID?
+    /// Denormalized copy of `projectID`'s name, kept in sync by
+    /// `TaskStore.setProject`/`refreshProjectName`/`clearProject` — lets new
+    /// records be stamped with the current project text without `TaskStore`
+    /// needing a live reference to `ProjectStore`.
+    var projectName: String
 
-    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date(), isArchived: Bool = false) {
+    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date(), isArchived: Bool = false, projectID: UUID? = nil, projectName: String = "") {
         self.id = id
         self.name = name
         self.description = description
         self.records = records
         self.createdAt = createdAt
         self.isArchived = isArchived
+        self.projectID = projectID
+        self.projectName = projectName
     }
 
     /// Total time (in seconds) across all recorded sessions, computed on demand.
@@ -73,7 +92,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     // MARK: - Codable (with migration from the pre-records format)
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, description, records, createdAt, isArchived
+        case id, name, description, records, createdAt, isArchived, projectID, projectName
         // Legacy key from the first version, used only for migration on read.
         case totalSeconds
     }
@@ -85,6 +104,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
+        projectID = try container.decodeIfPresent(UUID.self, forKey: .projectID)
+        projectName = try container.decodeIfPresent(String.self, forKey: .projectName) ?? ""
 
         if let decodedRecords = try container.decodeIfPresent([WorkRecord].self, forKey: .records) {
             records = decodedRecords
@@ -105,6 +126,8 @@ struct TaskItem: Identifiable, Codable, Equatable {
         try container.encode(records, forKey: .records)
         try container.encode(isArchived, forKey: .isArchived)
         try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(projectID, forKey: .projectID)
+        try container.encode(projectName, forKey: .projectName)
     }
 }
 

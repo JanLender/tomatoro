@@ -20,16 +20,22 @@ struct NumberStepperField: View {
     @Binding var value: Int
     let range: ClosedRange<Int>
     @Binding var isValid: Bool
+    /// When true, stepping past either end of `range` cycles to the other
+    /// end instead of stopping there — e.g. a minutes field going from 59
+    /// straight to 0, or 0 down to 59. Off by default, matching a plain
+    /// `Stepper`'s usual clamp-at-the-bound behavior.
+    var wraps: Bool = false
 
     @State private var text: String
     @FocusState private var isFocused: Bool
 
-    init(label: String? = nil, suffix: String? = nil, value: Binding<Int>, range: ClosedRange<Int>, isValid: Binding<Bool>) {
+    init(label: String? = nil, suffix: String? = nil, value: Binding<Int>, range: ClosedRange<Int>, isValid: Binding<Bool>, wraps: Bool = false) {
         self.label = label
         self.suffix = suffix
         self._value = value
         self.range = range
         self._isValid = isValid
+        self.wraps = wraps
         self._text = State(initialValue: String(value.wrappedValue))
     }
 
@@ -63,18 +69,22 @@ struct NumberStepperField: View {
                 Text(suffix)
                     .foregroundStyle(.secondary)
             }
-            Stepper(accessibilityLabel, value: $value, in: range)
-                .labelsHidden()
-                .onChange(of: value) { _, newValue in
-                    let synced = String(newValue)
-                    if synced != text {
-                        text = synced
-                        isValid = true
-                    }
-                }
+            if wraps {
+                WrappingStepper(accessibilityLabel: accessibilityLabel, value: $value, range: range)
+            } else {
+                Stepper(accessibilityLabel, value: $value, in: range)
+                    .labelsHidden()
+            }
         }
         .onAppear {
             validate(text)
+        }
+        .onChange(of: value) { _, newValue in
+            let synced = String(newValue)
+            if synced != text {
+                text = synced
+                isValid = true
+            }
         }
     }
 
@@ -92,5 +102,42 @@ struct NumberStepperField: View {
         guard !isValid else { return }
         text = String(value)
         isValid = true
+    }
+}
+
+/// A compact up/down control the same footprint as a plain `Stepper`, except
+/// its buttons cycle at the ends of `range` instead of disabling there —
+/// e.g. one click past 59 lands back on 0.
+private struct WrappingStepper: View {
+    let accessibilityLabel: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: increment) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 8, weight: .bold))
+                    .frame(maxWidth: .infinity)
+            }
+            Divider()
+            Button(action: decrement) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 20, height: 22)
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.4), lineWidth: 1))
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func increment() {
+        value = value == range.upperBound ? range.lowerBound : value + 1
+    }
+
+    private func decrement() {
+        value = value == range.lowerBound ? range.upperBound : value - 1
     }
 }

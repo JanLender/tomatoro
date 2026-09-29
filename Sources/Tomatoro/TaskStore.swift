@@ -19,9 +19,13 @@ final class TaskStore: ObservableObject {
 
     // MARK: - Mutations
 
+    /// Creates a task, optionally filed under a project from the start
+    /// (e.g. the caller's current default project) — pass `projectName`
+    /// as whatever `projectID` currently resolves to, since `TaskStore`
+    /// doesn't hold a live reference to `ProjectStore`.
     @discardableResult
-    func addTask(named name: String) -> TaskItem {
-        let task = TaskItem(name: name)
+    func addTask(named name: String, projectID: UUID? = nil, projectName: String = "") -> TaskItem {
+        let task = TaskItem(name: name, projectID: projectID, projectName: projectName)
         tasks.append(task)
         save()
         return task
@@ -53,10 +57,51 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Assigns (or clears, if `projectID` is nil) a task's project, and
+    /// rewrites the denormalized project text on all of its existing
+    /// records to match — see `WorkRecord.project`. `name` is whatever
+    /// `projectID` currently resolves to in `ProjectStore` (empty for nil).
+    func setProject(_ projectID: UUID?, name: String, for task: TaskItem) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].projectID = projectID
+        tasks[index].projectName = name
+        for recordIndex in tasks[index].records.indices {
+            tasks[index].records[recordIndex].project = name
+        }
+        save()
+    }
+
+    /// Cascades a project rename onto every task currently filed under it,
+    /// and onto all of those tasks' existing records.
+    func refreshProjectName(for projectID: UUID, newName: String) {
+        for index in tasks.indices where tasks[index].projectID == projectID {
+            tasks[index].projectName = newName
+            for recordIndex in tasks[index].records.indices {
+                tasks[index].records[recordIndex].project = newName
+            }
+        }
+        save()
+    }
+
+    /// Unassigns a deleted project from every task that referenced it, and
+    /// clears the denormalized text on all of those tasks' existing records.
+    func clearProject(_ projectID: UUID) {
+        for index in tasks.indices where tasks[index].projectID == projectID {
+            tasks[index].projectID = nil
+            tasks[index].projectName = ""
+            for recordIndex in tasks[index].records.indices {
+                tasks[index].records[recordIndex].project = ""
+            }
+        }
+        save()
+    }
+
     /// Logs a completed work session against a task and persists the change.
+    /// The record is stamped with the task's *current* project (looked up
+    /// fresh, not from the possibly-stale `task` snapshot passed in).
     func addRecord(startedAt: Date, durationSeconds: Int, description: String = "", to task: TaskItem) {
         guard durationSeconds > 0, let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        let record = WorkRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description)
+        let record = WorkRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, project: tasks[index].projectName)
         tasks[index].records.append(record)
         save()
     }

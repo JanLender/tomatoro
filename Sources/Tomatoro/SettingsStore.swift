@@ -6,6 +6,9 @@ final class SettingsStore: ObservableObject {
     @Published var defaultCountdownMinutes: Int {
         didSet { UserDefaults.standard.set(defaultCountdownMinutes, forKey: Keys.defaultCountdownMinutes) }
     }
+    @Published var defaultManualRecordHours: Int {
+        didSet { UserDefaults.standard.set(defaultManualRecordHours, forKey: Keys.defaultManualRecordHours) }
+    }
     @Published var defaultManualRecordMinutes: Int {
         didSet { UserDefaults.standard.set(defaultManualRecordMinutes, forKey: Keys.defaultManualRecordMinutes) }
     }
@@ -29,6 +32,7 @@ final class SettingsStore: ObservableObject {
 
     private enum Keys {
         static let defaultCountdownMinutes = "defaultCountdownMinutes"
+        static let defaultManualRecordHours = "defaultManualRecordHours"
         static let defaultManualRecordMinutes = "defaultManualRecordMinutes"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let idleReminderEnabled = "idleReminderEnabled"
@@ -40,7 +44,17 @@ final class SettingsStore: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
         defaultCountdownMinutes = defaults.object(forKey: Keys.defaultCountdownMinutes) as? Int ?? 25
-        defaultManualRecordMinutes = defaults.object(forKey: Keys.defaultManualRecordMinutes) as? Int ?? 25
+
+        if let hours = defaults.object(forKey: Keys.defaultManualRecordHours) as? Int {
+            defaultManualRecordHours = hours
+            defaultManualRecordMinutes = defaults.object(forKey: Keys.defaultManualRecordMinutes) as? Int ?? 25
+        } else {
+            // Migrate from the pre-split format, where this key held a single
+            // total (1...180) rather than just the minutes part (0...59).
+            let legacyTotal = defaults.object(forKey: Keys.defaultManualRecordMinutes) as? Int ?? 25
+            defaultManualRecordHours = legacyTotal / 60
+            defaultManualRecordMinutes = legacyTotal % 60
+        }
         showMenuBarIcon = defaults.object(forKey: Keys.showMenuBarIcon) as? Bool ?? true
         idleReminderEnabled = defaults.object(forKey: Keys.idleReminderEnabled) as? Bool ?? false
         idleReminderMinutes = defaults.object(forKey: Keys.idleReminderMinutes) as? Int ?? 15

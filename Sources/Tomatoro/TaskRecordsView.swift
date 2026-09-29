@@ -207,16 +207,24 @@ struct EditRecordSheet: View {
                     onRoundDown: { startedAt = TimeRounding.roundedDown(startedAt) },
                     onRoundUp: { startedAt = TimeRounding.roundedUp(startedAt) }
                 )
+                Spacer()
             }
+            StartedAtAdjustButtons(
+                onSubtract30Minutes: { startedAt = Calendar.current.date(byAdding: .minute, value: -30, to: startedAt) ?? startedAt },
+                onSubtractOneHour: { startedAt = Calendar.current.date(byAdding: .hour, value: -1, to: startedAt) ?? startedAt },
+                onZeroMinutes: { startedAt = TimeRounding.zeroingMinutes(startedAt) }
+            )
 
             HStack(spacing: 16) {
                 NumberStepperField(label: "Hours", value: $hours, range: 0...99, isValid: $hoursValid)
-                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid)
+                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid, wraps: true)
                 RoundToFiveButtons(
                     onRoundDown: { roundDuration(down: true) },
                     onRoundUp: { roundDuration(down: false) }
                 )
+                Spacer()
             }
+            MinutePresetButtons(onSelect: { minutes = $0 })
 
             if inputsValid {
                 Text("Duration: \(durationSeconds.asHoursMinutes)")
@@ -248,7 +256,7 @@ struct EditRecordSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: 460)
     }
 
     private func roundDuration(down: Bool) {

@@ -62,6 +62,18 @@ enum TimeRounding {
         components.nanosecond = 0
         return calendar.date(from: components) ?? date
     }
+
+    /// Zeroes the minute (and second) component of `date`, keeping the hour —
+    /// e.g. 9:37 becomes 9:00. Same explicit-`DateComponents` approach as
+    /// `zeroingSeconds`, for the same reason (`bySetting:` searches forward
+    /// instead of overwriting the field).
+    static func zeroingMinutes(_ date: Date, calendar: Calendar = .current) -> Date {
+        var components = calendar.dateComponents([.year, .month, .day, .hour], from: date)
+        components.minute = 0
+        components.second = 0
+        components.nanosecond = 0
+        return calendar.date(from: components) ?? date
+    }
 }
 
 /// A pair of small "round down" / "round up" buttons, sized to sit right
@@ -84,5 +96,43 @@ struct RoundToFiveButtons: View {
         }
         .buttonStyle(.borderless)
         .controlSize(.small)
+    }
+}
+
+/// Quick-pick buttons that set a duration's minutes to a quarter-hour mark
+/// outright, rather than nudging from the current value.
+struct MinutePresetButtons: View {
+    static let presets = [0, 15, 30, 45]
+
+    let onSelect: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Self.presets, id: \.self) { preset in
+                Button("\(preset)", action: { onSelect(preset) })
+                    .frame(minWidth: 32)
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
+    }
+}
+
+/// Quick relative adjustments for a start time: step back by a half hour or
+/// a full hour, or drop straight to the top of the current hour.
+struct StartedAtAdjustButtons: View {
+    let onSubtract30Minutes: () -> Void
+    let onSubtractOneHour: () -> Void
+    let onZeroMinutes: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button("-30m", action: onSubtract30Minutes)
+            Button("-1h", action: onSubtractOneHour)
+            Button(":00", action: onZeroMinutes)
+                .help("Zero out the minutes, keeping the hour")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
     }
 }

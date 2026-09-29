@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// runtime instantiates `CreateTaskCommand`/`AddRecordCommand` itself,
     /// so there's no call site to inject a store reference through.
     static var store: TaskStore?
+    static var projectStore: ProjectStore?
 
     func application(_ sender: NSApplication, delegateHandlesKey key: String) -> Bool {
         key == "tasks"
@@ -88,7 +89,8 @@ final class CreateTaskCommand: NSScriptCommand {
             return .success(["taskId": existing.id.uuidString, "taskName": existing.name, "taskDescription": existing.description])
         }
 
-        let task = store.addTask(named: name)
+        let defaultProject = AppDelegate.projectStore?.defaultProject
+        let task = store.addTask(named: name, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
         if !description.isEmpty {
             store.updateDescription(description, for: task)
         }
@@ -139,7 +141,8 @@ final class AddRecordCommand: NSScriptCommand {
             }
             task = existing
         } else {
-            task = store.addTask(named: identifier)
+            let defaultProject = AppDelegate.projectStore?.defaultProject
+            task = store.addTask(named: identifier, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
         }
 
         let durationSeconds = durationMinutes * 60

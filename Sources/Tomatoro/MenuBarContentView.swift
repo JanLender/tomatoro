@@ -164,7 +164,7 @@ struct MenuBarContentView: View {
         }
         .frame(width: 280)
         .sheet(item: $manualEntryTask) { task in
-            ManualRecordSheet(taskName: task.name, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
+            ManualRecordSheet(taskName: task.name, defaultHours: settings.defaultManualRecordHours, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
                 store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
             }
         }

@@ -8,7 +8,8 @@ struct SettingsView: View {
     @Binding var showMenuBarIcon: Bool
 
     @State private var defaultCountdownValid = true
-    @State private var defaultManualRecordValid = true
+    @State private var defaultManualRecordHoursValid = true
+    @State private var defaultManualRecordMinutesValid = true
     @State private var idleThresholdValid = true
 
     var body: some View {
@@ -18,7 +19,10 @@ struct SettingsView: View {
             }
 
             row("Default manual record") {
-                NumberStepperField(suffix: "min", value: $settings.defaultManualRecordMinutes, range: 1...180, isValid: $defaultManualRecordValid)
+                HStack(spacing: 8) {
+                    NumberStepperField(suffix: "h", value: $settings.defaultManualRecordHours, range: 0...99, isValid: $defaultManualRecordHoursValid)
+                    NumberStepperField(suffix: "min", value: $settings.defaultManualRecordMinutes, range: 0...59, isValid: $defaultManualRecordMinutesValid)
+                }
             }
 
             row("Show menu bar icon") {

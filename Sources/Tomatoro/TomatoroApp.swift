@@ -4,6 +4,7 @@ import SwiftUI
 struct TomatoroApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store: TaskStore
+    @StateObject private var projectStore: ProjectStore
     @StateObject private var session: SessionController
     @StateObject private var settings: SettingsStore
     @StateObject private var idleReminder: IdleReminderController
@@ -21,6 +22,9 @@ struct TomatoroApp: App {
         let store = TaskStore()
         _store = StateObject(wrappedValue: store)
         AppDelegate.store = store
+        let projectStore = ProjectStore()
+        _projectStore = StateObject(wrappedValue: projectStore)
+        AppDelegate.projectStore = projectStore
         let session = SessionController(store: store)
         _session = StateObject(wrappedValue: session)
         let settings = SettingsStore()
@@ -35,6 +39,7 @@ struct TomatoroApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(projectStore)
                 .environmentObject(session)
                 .environmentObject(settings)
                 .frame(minWidth: 640, minHeight: 420)
@@ -44,6 +49,13 @@ struct TomatoroApp: App {
         Window("Daily Summary", id: "dailySummary") {
             DailySummaryView()
                 .environmentObject(store)
+        }
+        .windowResizability(.contentMinSize)
+
+        Window("Projects", id: "projects") {
+            ProjectsView()
+                .environmentObject(store)
+                .environmentObject(projectStore)
         }
         .windowResizability(.contentMinSize)
 

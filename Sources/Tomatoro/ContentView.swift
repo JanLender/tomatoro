@@ -12,6 +12,7 @@ enum TaskSortField: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @EnvironmentObject private var store: TaskStore
+    @EnvironmentObject private var projectStore: ProjectStore
     @EnvironmentObject private var session: SessionController
     @EnvironmentObject private var settings: SettingsStore
     @Environment(\.openWindow) private var openWindow
@@ -76,6 +77,13 @@ struct ContentView: View {
         }
         .navigationTitle("Tomatoro")
         .toolbar {
+            ToolbarItem {
+                Button {
+                    openWindow(id: "projects")
+                } label: {
+                    Label("Projects", systemImage: "folder")
+                }
+            }
             ToolbarItem {
                 Button {
                     openWindow(id: "dailySummary")
@@ -219,9 +227,24 @@ struct ContentView: View {
     private func addTask() {
         let name = newTaskName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        let task = store.addTask(named: name)
+        let defaultProject = projectStore.defaultProject
+        let task = store.addTask(named: name, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
         newTaskName = ""
         selectedTaskID = task.id
+    }
+
+    /// A two-way binding onto a task's project assignment: reading it reads
+    /// straight from the task, writing it resolves the chosen id's current
+    /// name and pushes both through `TaskStore.setProject` (which also
+    /// cascades the new project text onto the task's existing records).
+    private func projectBinding(for task: TaskItem) -> Binding<UUID?> {
+        Binding(
+            get: { task.projectID },
+            set: { newProjectID in
+                let name = projectStore.project(withID: newProjectID)?.name ?? ""
+                store.setProject(newProjectID, name: name, for: task)
+            }
+        )
     }
 
     // MARK: - Session pane
@@ -274,6 +297,25 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: 320)
                 }
+
+                HStack(spacing: 6) {
+                    Text("Project:")
+                        .foregroundStyle(.secondary)
+                    if task.isArchived {
+                        Text(task.projectName.isEmpty ? "None" : task.projectName)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Project", selection: projectBinding(for: task)) {
+                            Text("None").tag(Optional<UUID>.none)
+                            ForEach(projectStore.projects) { project in
+                                Text(project.name).tag(Optional(project.id))
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: 180)
+                    }
+                }
+                .font(.caption)
 
                 Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
@@ -371,7 +413,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingManualEntry) {
             if let task = selectedTask {
-                ManualRecordSheet(taskName: task.name, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
+                ManualRecordSheet(taskName: task.name, defaultHours: settings.defaultManualRecordHours, defaultMinutes: settings.defaultManualRecordMinutes) { startedAt, durationSeconds, description in
                     store.addRecord(startedAt: startedAt, durationSeconds: durationSeconds, description: description, to: task)
                 }
             }
@@ -563,11 +605,11 @@ struct ManualRecordSheet: View {
     @State private var minutesValid = true
     @State private var description = ""
 
-    init(taskName: String, defaultMinutes: Int, onSave: @escaping (Date, Int, String) -> Void) {
+    init(taskName: String, defaultHours: Int, defaultMinutes: Int, onSave: @escaping (Date, Int, String) -> Void) {
         self.taskName = taskName
         self.onSave = onSave
-        self._hours = State(initialValue: defaultMinutes / 60)
-        self._minutes = State(initialValue: defaultMinutes % 60)
+        self._hours = State(initialValue: defaultHours)
+        self._minutes = State(initialValue: defaultMinutes)
     }
 
     private var durationSeconds: Int { hours * 3600 + minutes * 60 }
@@ -586,16 +628,24 @@ struct ManualRecordSheet: View {
                     onRoundDown: { startedAt = TimeRounding.roundedDown(startedAt) },
                     onRoundUp: { startedAt = TimeRounding.roundedUp(startedAt) }
                 )
+                Spacer()
             }
+            StartedAtAdjustButtons(
+                onSubtract30Minutes: { startedAt = Calendar.current.date(byAdding: .minute, value: -30, to: startedAt) ?? startedAt },
+                onSubtractOneHour: { startedAt = Calendar.current.date(byAdding: .hour, value: -1, to: startedAt) ?? startedAt },
+                onZeroMinutes: { startedAt = TimeRounding.zeroingMinutes(startedAt) }
+            )
 
             HStack(spacing: 16) {
                 NumberStepperField(label: "Hours", value: $hours, range: 0...99, isValid: $hoursValid)
-                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid)
+                NumberStepperField(label: "Minutes", value: $minutes, range: 0...59, isValid: $minutesValid, wraps: true)
                 RoundToFiveButtons(
                     onRoundDown: { roundDuration(down: true) },
                     onRoundUp: { roundDuration(down: false) }
                 )
+                Spacer()
             }
+            MinutePresetButtons(onSelect: { minutes = $0 })
 
             if inputsValid {
                 Text("Duration: \(durationSeconds.asHoursMinutes)")
@@ -622,7 +672,7 @@ struct ManualRecordSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: 460)
     }
 
     private func roundDuration(down: Bool) {
