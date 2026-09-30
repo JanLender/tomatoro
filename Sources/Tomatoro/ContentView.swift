@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var sessionMode: SessionMode = .countdown
     @State private var showingManualEntry = false
     @State private var showingEditDescription = false
+    @State private var showingEditEstimate = false
     @State private var showArchived = false
     @State private var pendingDescription: String = ""
     @State private var renamingTask: TaskItem?
@@ -315,6 +316,29 @@ struct ContentView: View {
                 Text("Recorded so far: \(task.totalSeconds.asHoursMinutes)")
                     .foregroundStyle(.secondary)
 
+                if let estimatedHours = task.estimatedHours {
+                    HStack(spacing: 6) {
+                        Text("Estimated: \(estimatedHours.trimmedHoursString)h")
+                            .foregroundStyle(.secondary)
+                        if !task.isArchived {
+                            Button {
+                                showingEditEstimate = true
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.link)
+                        }
+                    }
+                } else if !task.isArchived {
+                    Button {
+                        showingEditEstimate = true
+                    } label: {
+                        Label("Add estimate", systemImage: "pencil")
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                }
+
                 if task.isArchived {
                     Text("Unarchive this task to start a session or log work against it.")
                         .font(.caption)
@@ -417,6 +441,13 @@ struct ContentView: View {
             if let task = selectedTask {
                 EditDescriptionSheet(taskName: task.name, description: task.description) { newDescription in
                     store.updateDescription(newDescription, for: task)
+                }
+            }
+        }
+        .sheet(isPresented: $showingEditEstimate) {
+            if let task = selectedTask {
+                EditEstimateSheet(taskName: task.name, estimatedHours: task.estimatedHours) { newEstimate in
+                    store.setEstimatedHours(newEstimate, for: task)
                 }
             }
         }
@@ -584,6 +615,78 @@ private struct EditDescriptionSheet: View {
         }
         .padding(20)
         .frame(width: 360)
+    }
+}
+
+/// A small sheet for entering (or clearing) a task's estimated effort.
+private struct EditEstimateSheet: View {
+    let taskName: String
+    let onSave: (Double?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+    @State private var isValid = true
+
+    init(taskName: String, estimatedHours: Double?, onSave: @escaping (Double?) -> Void) {
+        self.taskName = taskName
+        self.onSave = onSave
+        self._text = State(initialValue: estimatedHours?.trimmedHoursString ?? "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Estimated effort")
+                .font(.headline)
+            Text(taskName)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                TextField("Hours", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 80)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(isValid ? Color.clear : Color.red, lineWidth: 1)
+                    )
+                    .onChange(of: text) { _, newValue in validate(newValue) }
+                Text("hours")
+                    .foregroundStyle(.secondary)
+            }
+
+            if !isValid {
+                Text("Enter a number, or leave blank to clear the estimate.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                Button("Save") {
+                    onSave(parsedValue())
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isValid)
+            }
+        }
+        .padding(20)
+        .frame(width: 300)
+    }
+
+    private func validate(_ input: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            isValid = true
+            return
+        }
+        isValid = Double(trimmed.replacingOccurrences(of: ",", with: ".")) != nil
+    }
+
+    private func parsedValue() -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        return Double(trimmed.replacingOccurrences(of: ",", with: "."))
     }
 }
 

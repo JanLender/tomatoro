@@ -60,8 +60,12 @@ struct TaskItem: Identifiable, Codable, Equatable {
     /// live from `ProjectStore` rather than copied here, so a rename can't
     /// go stale.
     var projectID: UUID?
+    /// A free-form estimate of how many hours the task is expected to take,
+    /// entered by hand. Purely informational — Tomatoro never compares it
+    /// against time actually recorded.
+    var estimatedHours: Double?
 
-    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date(), isArchived: Bool = false, projectID: UUID? = nil) {
+    init(id: UUID = UUID(), name: String, description: String = "", records: [WorkRecord] = [], createdAt: Date = Date(), isArchived: Bool = false, projectID: UUID? = nil, estimatedHours: Double? = nil) {
         self.id = id
         self.name = name
         self.description = description
@@ -69,6 +73,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         self.createdAt = createdAt
         self.isArchived = isArchived
         self.projectID = projectID
+        self.estimatedHours = estimatedHours
     }
 
     /// Total time (in seconds) across all recorded sessions, computed on demand.
@@ -79,7 +84,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
     // MARK: - Codable (with migration from the pre-records format)
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, description, records, createdAt, isArchived, projectID
+        case id, name, description, records, createdAt, isArchived, projectID, estimatedHours
         // Legacy key from the first version, used only for migration on read.
         case totalSeconds
     }
@@ -92,6 +97,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         projectID = try container.decodeIfPresent(UUID.self, forKey: .projectID)
+        estimatedHours = try container.decodeIfPresent(Double.self, forKey: .estimatedHours)
 
         if let decodedRecords = try container.decodeIfPresent([WorkRecord].self, forKey: .records) {
             records = decodedRecords
@@ -113,6 +119,7 @@ struct TaskItem: Identifiable, Codable, Equatable {
         try container.encode(isArchived, forKey: .isArchived)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(projectID, forKey: .projectID)
+        try container.encodeIfPresent(estimatedHours, forKey: .estimatedHours)
     }
 }
 
@@ -137,5 +144,18 @@ extension Int {
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         return String(format: "%dh %02dm", hours, minutes)
+    }
+}
+
+extension Double {
+    /// A plain string for a number of hours, dropping a trailing ".0" for
+    /// whole numbers (`3` rather than `3.0`) but keeping one decimal place
+    /// otherwise (`3.5`). Used for both showing and editing `estimatedHours`.
+    var trimmedHoursString: String {
+        let rounded = (self * 10).rounded() / 10
+        if rounded == rounded.rounded() {
+            return String(format: "%.0f", rounded)
+        }
+        return String(format: "%.1f", rounded)
     }
 }

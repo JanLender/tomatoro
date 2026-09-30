@@ -62,6 +62,14 @@ final class TaskStore: ObservableObject {
         save()
     }
 
+    /// Sets (or clears, if `hours` is nil) a task's estimated effort and
+    /// persists the change.
+    func setEstimatedHours(_ hours: Double?, for task: TaskItem) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].estimatedHours = hours
+        save()
+    }
+
     /// Unassigns a deleted project from every task that referenced it.
     func clearProject(_ projectID: UUID) {
         for index in tasks.indices where tasks[index].projectID == projectID {
