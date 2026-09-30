@@ -227,22 +227,17 @@ struct ContentView: View {
     private func addTask() {
         let name = newTaskName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        let defaultProject = projectStore.defaultProject
-        let task = store.addTask(named: name, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
+        let task = store.addTask(named: name, projectID: projectStore.defaultProject?.id)
         newTaskName = ""
         selectedTaskID = task.id
     }
 
-    /// A two-way binding onto a task's project assignment: reading it reads
-    /// straight from the task, writing it resolves the chosen id's current
-    /// name and pushes both through `TaskStore.setProject` (which also
-    /// cascades the new project text onto the task's existing records).
+    /// A two-way binding onto a task's project assignment.
     private func projectBinding(for task: TaskItem) -> Binding<UUID?> {
         Binding(
             get: { task.projectID },
             set: { newProjectID in
-                let name = projectStore.project(withID: newProjectID)?.name ?? ""
-                store.setProject(newProjectID, name: name, for: task)
+                store.setProject(newProjectID, for: task)
             }
         )
     }
@@ -302,7 +297,7 @@ struct ContentView: View {
                     Text("Project:")
                         .foregroundStyle(.secondary)
                     if task.isArchived {
-                        Text(task.projectName.isEmpty ? "None" : task.projectName)
+                        Text(projectStore.project(withID: task.projectID)?.name ?? "None")
                             .foregroundStyle(.secondary)
                     } else {
                         Picker("Project", selection: projectBinding(for: task)) {

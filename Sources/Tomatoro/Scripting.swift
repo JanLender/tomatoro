@@ -89,8 +89,7 @@ final class CreateTaskCommand: NSScriptCommand {
             return .success(["taskId": existing.id.uuidString, "taskName": existing.name, "taskDescription": existing.description])
         }
 
-        let defaultProject = AppDelegate.projectStore?.defaultProject
-        let task = store.addTask(named: name, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
+        let task = store.addTask(named: name, projectID: AppDelegate.projectStore?.defaultProject?.id)
         if !description.isEmpty {
             store.updateDescription(description, for: task)
         }
@@ -141,8 +140,7 @@ final class AddRecordCommand: NSScriptCommand {
             }
             task = existing
         } else {
-            let defaultProject = AppDelegate.projectStore?.defaultProject
-            task = store.addTask(named: identifier, projectID: defaultProject?.id, projectName: defaultProject?.name ?? "")
+            task = store.addTask(named: identifier, projectID: AppDelegate.projectStore?.defaultProject?.id)
         }
 
         let durationSeconds = durationMinutes * 60

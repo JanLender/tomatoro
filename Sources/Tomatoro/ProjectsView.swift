@@ -69,7 +69,6 @@ struct ProjectsView: View {
         .sheet(item: $renamingProject) { project in
             RenameProjectSheet(name: project.name) { newName in
                 projectStore.rename(project, to: newName)
-                store.refreshProjectName(for: project.id, newName: newName)
             }
         }
         .alert(
