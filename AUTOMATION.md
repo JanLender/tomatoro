@@ -92,6 +92,44 @@ it's unarchived first, then the record is added — so `add record` alone is
 enough to log time without ever having to `create task` or unarchive
 anything by hand first.
 
+## `export worklog`
+
+Read-only: exports tasks and their work records for a date range as a single
+JSON string, for tools that report or bill time logged in Tomatoro (see
+[JanLender/tajman](https://github.com/JanLender/tajman) — the doc that
+originally specified this command lives at
+`docs/tomatoro-interface.md` in that repo).
+
+```applescript
+tell application "Tomatoro"
+    export worklog from "2026-09-30" to "2026-09-30"
+end tell
+```
+
+- `from` is required, `to` is optional and defaults to `from` — both
+  `yyyy-MM-dd`, in the Mac's local time zone, inclusive. A record belongs to
+  the local day its `started at` falls on.
+- Includes **archived and unarchived** tasks alike, unlike `get tasks` — any
+  task with at least one record in range is included.
+- Tasks are ordered by the start of their first record *in the range*;
+  records within a task are ordered by `started at`.
+- `totalRecordedSeconds` is each task's all-time total, not limited to the
+  requested range — only `records` itself is filtered to the range.
+- `projectName` and `estimatedHours` are `null` when the task has no project
+  or no estimate set.
+
+```applescript
+tell application "Tomatoro"
+    set json to export worklog from "2026-09-01" to "2026-09-30"
+    -- hand `json` to whatever actually parses it (Shortcuts, a shell
+    -- pipeline via osascript, etc.) — AppleScript itself has no JSON parser
+end tell
+```
+
+```bash
+osascript -e 'tell application "Tomatoro" to export worklog from "2026-09-30"' | python3 -m json.tool
+```
+
 ## Error handling
 
 Bad input (empty name, non-positive duration, an id that matches nothing)

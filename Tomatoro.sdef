@@ -32,5 +32,12 @@
             <parameter name="started at" code="RcSt" type="date" optional="yes" description="When the session started. Defaults to (now minus duration)."/>
             <parameter name="notes" code="RcNt" type="text" optional="yes" description="An optional free-form note about the session."/>
         </command>
+
+        <command name="export worklog" code="TmtoExWl" description="Export tasks and their work records in a date range as a JSON string. Read-only; never changes any data.">
+            <cocoa class="ExportWorklogCommand"/>
+            <parameter name="from" code="WlFr" type="text" description="Start date, yyyy-MM-dd, local time zone, inclusive."/>
+            <parameter name="to" code="WlTo" type="text" optional="yes" description="End date, yyyy-MM-dd, local time zone, inclusive. Defaults to &quot;from&quot;."/>
+            <result type="text" description="JSON payload: {schemaVersion, from, to, tasks: [{id, name, projectName, estimatedHours, totalRecordedSeconds, records: [{id, startedAt, durationSeconds, description}]}]}."/>
+        </command>
     </suite>
 </dictionary>
