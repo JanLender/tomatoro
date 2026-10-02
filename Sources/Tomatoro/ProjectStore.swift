@@ -42,6 +42,18 @@ final class ProjectStore: ObservableObject {
         return projects.first { $0.id == id }
     }
 
+    /// Looks a project up by name, ignoring case — the scripting API
+    /// addresses projects by name, so names must stay unique (see `isNameTaken`).
+    func project(named name: String) -> Project? {
+        projects.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    /// Whether another project (not `excluding`) already uses `name`,
+    /// ignoring case.
+    func isNameTaken(_ name: String, excluding id: Project.ID? = nil) -> Bool {
+        projects.contains { $0.id != id && $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
     // MARK: - Mutations
 
     /// Adds a new project and persists the change. The very first project
@@ -58,9 +70,8 @@ final class ProjectStore: ObservableObject {
         return project
     }
 
-    /// Renames a project and persists the change. This only updates the
-    /// registry — cascading the new name onto tasks/records that reference
-    /// it is the caller's job (see `TaskStore.refreshProjectName(for:newName:)`).
+    /// Renames a project and persists the change. Tasks reference projects
+    /// by id, so nothing else needs updating.
     func rename(_ project: Project, to name: String) {
         guard let index = projects.firstIndex(where: { $0.id == project.id }) else { return }
         projects[index].name = name

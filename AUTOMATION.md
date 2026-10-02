@@ -15,10 +15,25 @@ Apple Events sent to a live app, not a headless CLI.
 Script Editor → File → Open Dictionary… → Tomatoro shows the full dictionary
 with descriptions, the same way you'd browse Mail's or Finder's.
 
+## Task identity: project + name
+
+A task is identified by the pair **(project, task name)**, both compared
+ignoring case. The same name in two projects is two different tasks. The
+scripting API never relies on the default project — that's a GUI convenience
+— so every command that addresses a task by name must also name its project.
+
+- A project is given by name (`in project "ORCA"`) and must already exist;
+  the API never creates one. Manage projects in the Projects window.
+- Missing or empty task name or project, or an unknown project, is an
+  ordinary AppleScript error whose message contains `invalid data`.
+- Tasks created before projects existed have no project; they can't be
+  addressed by name any more, only by id (`add record "<task id>" …`).
+
 ## `get tasks`
 
 Returns every **unarchived** task as a list of `task info` records, each with
-`task id`, `task name`, and `task description`.
+`task id`, `task name`, `task description` and `task project` (the project's
+name, empty for a task without one).
 
 ```applescript
 tell application "Tomatoro"
@@ -28,8 +43,9 @@ end tell
 
 ```applescript
 tell application "Tomatoro"
-    repeat with t in tasks
-        log (task name of t) & " — " & (task id of t)
+    set allTasks to get tasks
+    repeat with t in allTasks
+        log (task project of t) & " / " & (task name of t) & " — " & (task id of t)
     end repeat
 end tell
 ```
@@ -38,36 +54,41 @@ end tell
 
 ```applescript
 tell application "Tomatoro"
-    create task "Q3 Planning"
-    create task "Q3 Planning" with description "Roadmap review and staffing"
+    create task "Q3 Planning" in project "ORCA"
+    create task "Q3 Planning" in project "ORCA" with description "Roadmap review and staffing"
 end tell
 ```
 
-Idempotent by name (case-insensitive): calling it again with a name that
-already matches an **unarchived** task just returns that task unchanged — no
-duplicate is created. If the matching task is **archived**, it's unarchived
-and returned instead of creating a new one. Either way the result is a
-`task info` record, so it's safe to always capture it:
+Idempotent per (project, name): if an **unarchived** task with that identity
+exists it's returned unchanged — description included, so `with description`
+only matters for a brand-new task. If it exists but is **archived**, it's
+unarchived and returned. Otherwise it's created in that project. A task with
+the same name in another project is unaffected. The result is a `task info`
+record, so it's safe to always capture it:
 
 ```applescript
 tell application "Tomatoro"
-    set t to create task "Q3 Planning"
+    set t to create task "Q3 Planning" in project "ORCA"
     return task id of t
 end tell
 ```
 
 ## `add record`
 
-Logs a completed work session against a task, identified by name or id.
+Logs a completed work session. The task is given either by **id**, or by
+**name together with `in project`**.
 
 ```applescript
 tell application "Tomatoro"
-    add record "Q3 Planning" duration 30
-    add record "Q3 Planning" duration 45 notes "Reviewed staffing plan"
+    add record "Q3 Planning" duration 30 in project "ORCA"
+    add record "Q3 Planning" duration 45 notes "Reviewed staffing plan" in project "ORCA"
+    add record "9D0E1C3A-…-task-id" duration 15 -- by id: no project needed
 end tell
 ```
 
 - `duration` is in **minutes** and required.
+- `in project` is required when the task is given by name; it is ignored
+  when the first argument is a task id (an id is already unambiguous).
 - `started at` is optional and defaults to `(now − duration)`, i.e. a session
   that just ended. Pass an explicit date to backfill a different time:
 
@@ -80,17 +101,16 @@ end tell
       set hours of d to 9
       set minutes of d to 30
       set seconds of d to 0
-      add record "Q3 Planning" duration 25 started at d notes "Backfilled"
+      add record "Q3 Planning" duration 25 started at d notes "Backfilled" in project "ORCA"
   end tell
   ```
 
 - `notes` is optional free-form text.
 
-If no task matches the given name (or id), one is created automatically and
-the record is logged against it. If a matching task exists but is archived,
-it's unarchived first, then the record is added — so `add record` alone is
-enough to log time without ever having to `create task` or unarchive
-anything by hand first.
+If no task has that (project, name), one is created in the project; if a
+matching task is archived, it's unarchived first, then the record is added —
+so `add record` alone is enough to log time without ever having to
+`create task` or unarchive anything by hand first.
 
 ## `export worklog`
 
@@ -132,14 +152,15 @@ osascript -e 'tell application "Tomatoro" to export worklog from "2026-09-30"' |
 
 ## Error handling
 
-Bad input (empty name, non-positive duration, an id that matches nothing)
-raises a normal AppleScript error with a human-readable message — wrap calls
+Bad input (empty name, missing or unknown project, non-positive duration)
+raises a normal AppleScript error whose human-readable message contains
+`invalid data` — wrap calls
 in a `try` block if a script needs to continue past a failure:
 
 ```applescript
 tell application "Tomatoro"
     try
-        add record "Some Task" duration 0
+        add record "Some Task" duration 0 in project "ORCA"
     on error errText
         log "Failed: " & errText
     end try
@@ -153,20 +174,20 @@ or non-AppleScript automation (cron, Shortcuts' "Run Shell Script", etc.):
 
 ```bash
 osascript -e 'tell application "Tomatoro" to get tasks'
-osascript -e 'tell application "Tomatoro" to add record "Q3 Planning" duration 15 notes "Quick sync"'
+osascript -e 'tell application "Tomatoro" to add record "Q3 Planning" duration 15 notes "Quick sync" in project "ORCA"'
 ```
 
 ## A worked example
 
-Log a block of time against a task, creating it on the fly if it doesn't
-exist yet — the common case for a script fed by an external time source
+Log a block of time against a task, creating it in its project on the fly if
+it doesn't exist yet — the common case for a script fed by an external time source
 (a calendar event, a ticket you just closed, etc.):
 
 ```applescript
 tell application "Tomatoro"
-    add record "ORCA Daily SU" duration 15 notes "Standup"
+    add record "Daily SU" duration 15 notes "Standup" in project "ORCA"
 end tell
 ```
 
-That's the whole script — no need to check whether "ORCA Daily SU" exists,
+That's the whole script — no need to check whether "Daily SU" exists in ORCA,
 create it, or unarchive it first; `add record` handles all three cases.

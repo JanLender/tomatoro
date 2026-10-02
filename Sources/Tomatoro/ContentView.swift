@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var showArchived = false
     @State private var pendingDescription: String = ""
     @State private var renamingTask: TaskItem?
+    @State private var identityConflictMessage: String?
     @State private var sortField: TaskSortField = .created
     @State private var sortAscending = true
     @State private var searchText = ""
@@ -218,8 +219,22 @@ struct ContentView: View {
             }
             .padding(8)
         }
+        .alert(
+            "Task already exists",
+            isPresented: Binding(
+                get: { identityConflictMessage != nil },
+                set: { if !$0 { identityConflictMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(identityConflictMessage ?? "")
+        }
         .sheet(item: $renamingTask) { task in
-            RenameTaskSheet(name: task.name) { newName in
+            RenameTaskSheet(
+                name: task.name,
+                isTaken: { store.isIdentityTaken(name: $0, projectID: task.projectID, excluding: task.id) }
+            ) { newName in
                 store.rename(task, to: newName)
             }
         }
@@ -228,9 +243,24 @@ struct ContentView: View {
     private func addTask() {
         let name = newTaskName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        let task = store.addTask(named: name, projectID: projectStore.defaultProject?.id)
+        let defaultProject = projectStore.defaultProject
+        guard !store.isIdentityTaken(name: name, projectID: defaultProject?.id) else {
+            identityConflictMessage = conflictMessage(name: name, projectID: defaultProject?.id)
+            return
+        }
+        let task = store.addTask(named: name, projectID: defaultProject?.id)
         newTaskName = ""
         selectedTaskID = task.id
+    }
+
+    /// A task is identified by (project, name) — the scripting API relies on
+    /// it — so the GUI refuses to create, rename or move a task onto an
+    /// identity another task already has.
+    private func conflictMessage(name: String, projectID: UUID?) -> String {
+        if let projectName = projectStore.project(withID: projectID)?.name {
+            return "A task named \"\(name)\" already exists in project \"\(projectName)\"."
+        }
+        return "A task named \"\(name)\" without a project already exists."
     }
 
     /// A two-way binding onto a task's project assignment.
@@ -238,6 +268,10 @@ struct ContentView: View {
         Binding(
             get: { task.projectID },
             set: { newProjectID in
+                guard !store.isIdentityTaken(name: task.name, projectID: newProjectID, excluding: task.id) else {
+                    identityConflictMessage = conflictMessage(name: task.name, projectID: newProjectID)
+                    return
+                }
                 store.setProject(newProjectID, for: task)
             }
         )
@@ -534,17 +568,20 @@ private struct TaskRow: View {
 
 /// A small sheet for renaming a task.
 private struct RenameTaskSheet: View {
+    let isTaken: (String) -> Bool
     let onSave: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
 
-    init(name: String, onSave: @escaping (String) -> Void) {
+    init(name: String, isTaken: @escaping (String) -> Bool, onSave: @escaping (String) -> Void) {
+        self.isTaken = isTaken
         self.onSave = onSave
         self._name = State(initialValue: name)
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
+    private var nameTaken: Bool { !trimmedName.isEmpty && isTaken(trimmedName) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -555,12 +592,18 @@ private struct RenameTaskSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(save)
 
+            if nameTaken {
+                Text("Another task in this project already has this name.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty)
+                    .disabled(trimmedName.isEmpty || nameTaken)
             }
         }
         .padding(20)
@@ -568,7 +611,7 @@ private struct RenameTaskSheet: View {
     }
 
     private func save() {
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty, !nameTaken else { return }
         onSave(trimmedName)
         dismiss()
     }

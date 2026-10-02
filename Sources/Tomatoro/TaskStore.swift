@@ -17,6 +17,20 @@ final class TaskStore: ObservableObject {
         load()
     }
 
+    // MARK: - Lookup
+
+    /// A task's identity is the pair (project, name), compared ignoring case.
+    /// `projectID` nil matches tasks that have no project.
+    func task(named name: String, inProject projectID: UUID?) -> TaskItem? {
+        tasks.first { $0.projectID == projectID && $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    /// Whether a task other than `excluding` already has the identity
+    /// (`projectID`, `name`).
+    func isIdentityTaken(name: String, projectID: UUID?, excluding id: TaskItem.ID? = nil) -> Bool {
+        tasks.contains { $0.id != id && $0.projectID == projectID && $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
     // MARK: - Mutations
 
     /// Creates a task, optionally filed under a project from the start

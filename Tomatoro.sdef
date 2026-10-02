@@ -10,6 +10,7 @@
             <property name="task id" code="TkID" type="text" description="The task's unique identifier."/>
             <property name="task name" code="TkNm" type="text" description="The task's name."/>
             <property name="task description" code="TkDs" type="text" description="The task's free-form description."/>
+            <property name="task project" code="TkPr" type="text" description="The name of the task's project; empty for a task without one."/>
         </record-type>
 
         <class-extension extends="application" description="Adds task-related scripting to the application.">
@@ -18,19 +19,21 @@
             </property>
         </class-extension>
 
-        <command name="create task" code="TmtoCrTk" description="Create a new task. If an unarchived task of the same name already exists, it's returned unchanged; if it exists but is archived, it's unarchived and returned.">
+        <command name="create task" code="TmtoCrTk" description="Create a task in a project. A task is identified by its project and name (both compared ignoring case): if an unarchived task with that identity exists it's returned unchanged; if it's archived it's unarchived and returned. The project must already exist; it's never created. A missing name or project, or an unknown project, is an error.">
             <cocoa class="CreateTaskCommand"/>
-            <direct-parameter type="text" description="The name of the new task."/>
-            <parameter name="with description" code="CrDs" type="text" optional="yes" description="An optional free-form description for the task."/>
+            <direct-parameter type="text" optional="yes" description="The name of the task."/>
+            <parameter name="in project" code="InPj" type="text" optional="yes" description="The name of the (existing) project the task belongs to. Required."/>
+            <parameter name="with description" code="CrDs" type="text" optional="yes" description="An optional free-form description, used only when a new task is created."/>
             <result type="task info" description="The (possibly pre-existing) task."/>
         </command>
 
-        <command name="add record" code="TmtoAdRc" description="Add a completed work record to a task. If no task matches the given name or id, one is created; if it exists but is archived, it's unarchived first.">
+        <command name="add record" code="TmtoAdRc" description="Add a completed work record to a task. The task is given either by its id, or by its name together with &quot;in project&quot;. A name and project that match no task create one; an archived match is unarchived first. A name without a project, or an unknown project, is an error.">
             <cocoa class="AddRecordCommand"/>
-            <direct-parameter type="text" description="The name or id of the task to log time against."/>
+            <direct-parameter type="text" description="The id of an existing task, or a task name (which needs &quot;in project&quot;)."/>
             <parameter name="duration" code="RcDr" type="integer" description="How long the session lasted, in minutes."/>
             <parameter name="started at" code="RcSt" type="date" optional="yes" description="When the session started. Defaults to (now minus duration)."/>
             <parameter name="notes" code="RcNt" type="text" optional="yes" description="An optional free-form note about the session."/>
+            <parameter name="in project" code="InPj" type="text" optional="yes" description="The name of the (existing) project; required when the task is given by name, ignored when given by id."/>
         </command>
 
         <command name="export worklog" code="TmtoExWl" description="Export tasks and their work records in a date range as a JSON string. Read-only; never changes any data.">

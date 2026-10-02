@@ -13,6 +13,12 @@ private struct UncheckedSendable<Value>: @unchecked Sendable {
 /// human-readable failure back to `performDefaultImplementation()`.
 private struct ScriptingError: Error {
     let message: String
+
+    /// Validation failures all carry "invalid data", so a caller can tell a
+    /// bad request from an internal failure by the message text alone.
+    static func invalidData(_ detail: String) -> ScriptingError {
+        ScriptingError(message: "invalid data: \(detail)")
+    }
 }
 
 /// Backing object for Tomatoro's AppleScript dictionary (see `Tomatoro.sdef`
@@ -37,14 +43,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc var tasks: [[String: Any]] {
         (AppDelegate.store?.tasks ?? [])
             .filter { !$0.isArchived }
-            .map(\.scriptingRecord)
+            .map { $0.scriptingRecord(projectName: AppDelegate.projectStore?.project(withID: $0.projectID)?.name) }
     }
 }
 
 private extension TaskItem {
-    var scriptingRecord: [String: Any] {
-        ["taskId": id.uuidString, "taskName": name, "taskDescription": description]
+    /// `taskProject` is empty for a task without a project.
+    func scriptingRecord(projectName: String?) -> [String: Any] {
+        ["taskId": id.uuidString, "taskName": name, "taskDescription": description, "taskProject": projectName ?? ""]
     }
+}
+
+/// Validates the (task name, project name) pair every command identifies a
+/// task by. A project is never created through scripting.
+@MainActor
+private func resolveProject(named projectName: String?) -> Result<Project, ScriptingError> {
+    guard let projectName, !projectName.isEmpty else {
+        return .failure(.invalidData("missing project (use \"in project\")."))
+    }
+    guard let project = AppDelegate.projectStore?.project(named: projectName) else {
+        return .failure(.invalidData("project \"\(projectName)\" doesn't exist."))
+    }
+    return .success(project)
 }
 
 @objc(CreateTaskCommand)
@@ -57,10 +77,11 @@ final class CreateTaskCommand: NSScriptCommand {
     // back to `self` out here.
     override func performDefaultImplementation() -> Any? {
         let name = (directParameter as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let projectName = (evaluatedArguments?["inProject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let description = (evaluatedArguments?["withDescription"] as? String) ?? ""
 
         let outcome = MainActor.assumeIsolated {
-            UncheckedSendable(value: CreateTaskCommand.createTask(name: name, description: description))
+            UncheckedSendable(value: CreateTaskCommand.createTask(name: name, projectName: projectName, description: description))
         }.value
 
         switch outcome {
@@ -73,27 +94,32 @@ final class CreateTaskCommand: NSScriptCommand {
         }
     }
 
-    /// If an unarchived task of this name already exists, that task is
-    /// returned unchanged (no duplicate is created). If it exists but is
-    /// archived, it's unarchived and returned as-is. Otherwise a new task
-    /// is created with the given description.
+    /// A task is identified by (project, name). If an unarchived one exists
+    /// it's returned unchanged (description included); an archived one is
+    /// unarchived and returned; otherwise a new task is created in the
+    /// project. The same name in another project is a different task.
     @MainActor
-    private static func createTask(name: String, description: String) -> Result<[String: Any], ScriptingError> {
-        guard !name.isEmpty else { return .failure(ScriptingError(message: "A task needs a name.")) }
+    private static func createTask(name: String, projectName: String?, description: String) -> Result<[String: Any], ScriptingError> {
+        guard !name.isEmpty else { return .failure(.invalidData("missing task name.")) }
         guard let store = AppDelegate.store else { return .failure(ScriptingError(message: "Tomatoro isn't ready yet.")) }
+        let project: Project
+        switch resolveProject(named: projectName) {
+        case .success(let found): project = found
+        case .failure(let error): return .failure(error)
+        }
 
-        if let existing = store.tasks.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+        if let existing = store.task(named: name, inProject: project.id) {
             if existing.isArchived {
                 store.setArchived(false, for: existing)
             }
-            return .success(["taskId": existing.id.uuidString, "taskName": existing.name, "taskDescription": existing.description])
+            return .success(existing.scriptingRecord(projectName: project.name))
         }
 
-        let task = store.addTask(named: name, projectID: AppDelegate.projectStore?.defaultProject?.id)
+        let task = store.addTask(named: name, projectID: project.id)
         if !description.isEmpty {
             store.updateDescription(description, for: task)
         }
-        return .success(["taskId": task.id.uuidString, "taskName": task.name, "taskDescription": description])
+        return .success(task.scriptingRecord(projectName: project.name).merging(["taskDescription": description]) { _, new in new })
     }
 }
 
@@ -101,12 +127,13 @@ final class CreateTaskCommand: NSScriptCommand {
 final class AddRecordCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         let identifier = (directParameter as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let projectName = (evaluatedArguments?["inProject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let durationMinutes = evaluatedArguments?["duration"] as? Int
         let startedAtOverride = evaluatedArguments?["startedAt"] as? Date
         let notes = (evaluatedArguments?["notes"] as? String) ?? ""
 
         let outcome = MainActor.assumeIsolated {
-            AddRecordCommand.addRecord(identifier: identifier, durationMinutes: durationMinutes, startedAtOverride: startedAtOverride, notes: notes)
+            AddRecordCommand.addRecord(identifier: identifier, projectName: projectName, durationMinutes: durationMinutes, startedAtOverride: startedAtOverride, notes: notes)
         }
 
         if case .failure(let error) = outcome {
@@ -116,31 +143,36 @@ final class AddRecordCommand: NSScriptCommand {
         return nil
     }
 
-    /// Resolves the task by name or id if it already exists (unarchiving it
-    /// first if needed), or — if `identifier` doesn't match any existing
-    /// task — creates a new task named `identifier` to log against.
+    /// `identifier` is either the id of an existing task (the project is then
+    /// ignored) or a task name, which needs `projectName` too. A name that
+    /// matches no task in that project creates one; an archived match is
+    /// unarchived first.
     @MainActor
-    private static func addRecord(identifier: String, durationMinutes: Int?, startedAtOverride: Date?, notes: String) -> Result<Void, ScriptingError> {
+    private static func addRecord(identifier: String, projectName: String?, durationMinutes: Int?, startedAtOverride: Date?, notes: String) -> Result<Void, ScriptingError> {
         guard !identifier.isEmpty else {
-            return .failure(ScriptingError(message: "Specify which task to log time against, by name or id."))
+            return .failure(.invalidData("missing task (a task id, or a task name with \"in project\")."))
         }
         guard let store = AppDelegate.store else {
             return .failure(ScriptingError(message: "Tomatoro isn't ready yet."))
         }
         guard let durationMinutes, durationMinutes > 0 else {
-            return .failure(ScriptingError(message: "\"duration\" must be a positive number of minutes."))
+            return .failure(.invalidData("\"duration\" must be a positive number of minutes."))
         }
 
         let task: TaskItem
-        if let existing = store.tasks.first(where: {
-            $0.name.caseInsensitiveCompare(identifier) == .orderedSame || $0.id.uuidString.caseInsensitiveCompare(identifier) == .orderedSame
-        }) {
-            if existing.isArchived {
-                store.setArchived(false, for: existing)
-            }
-            task = existing
+        if let byID = store.tasks.first(where: { $0.id.uuidString.caseInsensitiveCompare(identifier) == .orderedSame }) {
+            task = byID
         } else {
-            task = store.addTask(named: identifier, projectID: AppDelegate.projectStore?.defaultProject?.id)
+            let project: Project
+            switch resolveProject(named: projectName) {
+            case .success(let found): project = found
+            case .failure(let error): return .failure(error)
+            }
+            task = store.task(named: identifier, inProject: project.id)
+                ?? store.addTask(named: identifier, projectID: project.id)
+        }
+        if task.isArchived {
+            store.setArchived(false, for: task)
         }
 
         let durationSeconds = durationMinutes * 60

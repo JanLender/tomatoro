@@ -61,13 +61,24 @@ struct ProjectsView: View {
                 Button(action: addProject) {
                     Image(systemName: "plus")
                 }
-                .disabled(newProjectName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(newProjectName.trimmingCharacters(in: .whitespaces).isEmpty || newProjectNameTaken)
             }
             .padding(8)
+
+            if newProjectNameTaken {
+                Text("A project with this name already exists.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
         }
         .frame(minWidth: 320, idealWidth: 360, minHeight: 320, idealHeight: 420)
         .sheet(item: $renamingProject) { project in
-            RenameProjectSheet(name: project.name) { newName in
+            RenameProjectSheet(
+                name: project.name,
+                isTaken: { projectStore.isNameTaken($0, excluding: project.id) }
+            ) { newName in
                 projectStore.rename(project, to: newName)
             }
         }
@@ -90,9 +101,16 @@ struct ProjectsView: View {
         }
     }
 
+    /// Projects are addressed by name in the scripting API, so names must
+    /// stay unique (ignoring case).
+    private var newProjectNameTaken: Bool {
+        let name = newProjectName.trimmingCharacters(in: .whitespaces)
+        return !name.isEmpty && projectStore.isNameTaken(name)
+    }
+
     private func addProject() {
         let name = newProjectName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
+        guard !name.isEmpty, !newProjectNameTaken else { return }
         projectStore.addProject(named: name)
         newProjectName = ""
     }
@@ -100,17 +118,20 @@ struct ProjectsView: View {
 
 /// A small sheet for renaming a project — same pattern as `RenameTaskSheet`.
 private struct RenameProjectSheet: View {
+    let isTaken: (String) -> Bool
     let onSave: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
 
-    init(name: String, onSave: @escaping (String) -> Void) {
+    init(name: String, isTaken: @escaping (String) -> Bool, onSave: @escaping (String) -> Void) {
+        self.isTaken = isTaken
         self.onSave = onSave
         self._name = State(initialValue: name)
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
+    private var nameTaken: Bool { !trimmedName.isEmpty && isTaken(trimmedName) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -121,12 +142,18 @@ private struct RenameProjectSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit(save)
 
+            if nameTaken {
+                Text("A project with this name already exists.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
                 Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty)
+                    .disabled(trimmedName.isEmpty || nameTaken)
             }
         }
         .padding(20)
@@ -134,7 +161,7 @@ private struct RenameProjectSheet: View {
     }
 
     private func save() {
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty, !nameTaken else { return }
         onSave(trimmedName)
         dismiss()
     }
